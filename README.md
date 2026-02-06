@@ -40,10 +40,14 @@ I implemented the full application stack with a focus on modularity and scalabil
 ## 📁 Repository Structure
 ```text
 .
-├── app/                # Expo Router - File-based navigation
-├── components/         # Reusable UI components (Cards, Forms, Buttons)
-├── constants/          # Theme, Config, and Mock Data
-├── hooks/              # Custom React hooks for Firebase & UI logic
-├── lib/                # Firebase initialization & Utility functions
-├── types/              # TypeScript interfaces for Post & User models
-└── app.json            # Expo configuration
+├── app/                # Expo Router - File-based navigation (Feed, Post, Details)
+├── assets/images/      # Media assets, icons, and splash screens
+├── components/         # Reusable UI components (Cards, Form inputs, Lists)
+├── constants/          # App theme, configuration, and mock data for MVP
+├── hooks/              # Custom React hooks for Firebase logic & UI state
+├── lib/                # Firebase SDK initialization & utility helper functions
+├── scripts/            # Automation & maintenance scripts
+├── types/              # TypeScript interfaces & type definitions
+├── app.json            # Expo configuration & app manifest
+├── .gitignore          # Environment & dependency exclusions
+└── package.json        # Project dependencies & scripts
