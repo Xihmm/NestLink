@@ -4,7 +4,7 @@
 ![Tech](https://img.shields.io/badge/Tech-React_Native_%7C_Firebase-blue)
 ![Role](https://img.shields.io/badge/Role-Founder_%26_Full--stack_Dev-green)
 
-**NestLink** is a production-ready mobile application designed to solve the fragmented and privacy-deficient nature of student housing markets (specifically for the UR/RIT community). By replacing scattered WeChat groups with a structured, high-privacy platform, NestLink empowers students to find compatible roommates and sublets with ease. 
+**NestLink** is a production-ready mobile application designed to solve the fragmented and privacy-deficient nature of student housing markets (specifically for the UR/RIT community). By replacing scattered WeChat groups and Facebook posts with a structured, high-privacy platform, NestLink empowers students to find compatible roommates and sublets with ease. 
 ---
 
 ## 🚀 Product Vision & AI Strategy (PM Insight)
