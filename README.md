@@ -40,6 +40,8 @@ I implemented the full application stack with a focus on modularity and scalabil
 ## 📁 Repository Structure
 ```text
 .
+├── .github/workflows/  # CI/CD pipelines (Automation bots)
+│   └── ci.yml          # Linting & Type check workflow
 ├── app/                # Expo Router - File-based navigation (Feed, Post, Details)
 ├── assets/images/      # Media assets, icons, and splash screens
 ├── components/         # Reusable UI components (Cards, Form inputs, Lists)
