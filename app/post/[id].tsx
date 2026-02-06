@@ -16,7 +16,7 @@ export default function PostDetailScreen() {
         <Stack.Screen options={{ title: 'Post Not Found' }} />
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Post not found</Text>
-          <Text style={styles.errorSubtext}>The post you're looking for doesn&apos;t exist.</Text>
+          <Text style={styles.errorSubtext}>The post you're looking for does not exist.</Text>
         </View>
       </View>
     );
