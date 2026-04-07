@@ -1,12 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { collection, query, orderBy, getDocs, addDoc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Post } from '@/types/post';
+import { Post, PostStatus } from '@/types/post';
 
 interface PostsContextType {
   posts: Post[];
   loading: boolean;
   addPost: (post: Post) => Promise<void>;
+  updatePostStatus: (id: string, status: PostStatus, isSample?: boolean) => Promise<void>;
+  deletePost: (id: string, isSample?: boolean) => Promise<void>;
   getPostById: (id: string) => Post | undefined;
 }
 
@@ -203,10 +205,24 @@ export const PostsProvider = ({ children }: { children: ReactNode }) => {
     setPosts((prev) => [savedPost, ...prev]);
   };
 
+  const updatePostStatus = async (id: string, status: PostStatus, isSample = false) => {
+    if (!isSample) {
+      await updateDoc(doc(db, 'posts', id), { status });
+    }
+    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
+  };
+
+  const deletePost = async (id: string, isSample = false) => {
+    if (!isSample) {
+      await deleteDoc(doc(db, 'posts', id));
+    }
+    setPosts((prev) => prev.filter((p) => p.id !== id));
+  };
+
   const getPostById = (id: string) => posts.find((post) => post.id === id);
 
   return (
-    <PostsContext.Provider value={{ posts, loading, addPost, getPostById }}>
+    <PostsContext.Provider value={{ posts, loading, addPost, updatePostStatus, deletePost, getPostById }}>
       {children}
     </PostsContext.Provider>
   );

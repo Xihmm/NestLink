@@ -25,12 +25,14 @@ export default function CreatePostScreen() {
   const [intent, setIntent] = useState<PostIntent>('OFFER');
   const [location, setLocation] = useState('');
   const [budget, setBudget] = useState('');
-  const [startMonth, setStartMonth] = useState('');
-  const [startDay, setStartDay] = useState('');
-  const [startYear, setStartYear] = useState('');
-  const [endMonth, setEndMonth] = useState('');
-  const [endDay, setEndDay] = useState('');
-  const [endYear, setEndYear] = useState('');
+  const [startMM, setStartMM] = useState('');
+  const [startDD, setStartDD] = useState('');
+  const [startYYYY, setStartYYYY] = useState('');
+  const [endMM, setEndMM] = useState('');
+  const [endDD, setEndDD] = useState('');
+  const [endYYYY, setEndYYYY] = useState('');
+  const [startDateError, setStartDateError] = useState('');
+  const [endDateError, setEndDateError] = useState('');
   const [authorName, setAuthorName] = useState('');
   const [wechatId, setWechatId] = useState('');
   const [phone, setPhone] = useState('');
@@ -38,6 +40,7 @@ export default function CreatePostScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const isQA = types.includes('QA');
+  const isRoommateOnly = types.length === 1 && types.includes('ROOMMATE');
   const needsDates = types.includes('SUBLET') || types.includes('SHORT_TERM');
 
   const toggleType = (value: PostType) => {
@@ -59,14 +62,27 @@ export default function CreatePostScreen() {
     setTypes(next);
     if (next.includes('QA')) {
       setIntent(null);
+    } else if (next.length === 1 && next.includes('ROOMMATE')) {
+      setIntent('SEEK');
     } else if (!intent) {
       setIntent('OFFER');
     }
   };
 
-  const buildDateString = (month: string, day: string, year: string) => {
-    if (!month || !day || !year || year.length < 4) return undefined;
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  const buildDateString = (mm: string, dd: string, yyyy: string) => {
+    if (!mm || !dd || !yyyy || yyyy.length < 4) return undefined;
+    return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+  };
+
+  const validateDate = (mm: string, dd: string, yyyy: string): string => {
+    if (!mm && !dd && !yyyy) return '';
+    if (!mm || !dd || !yyyy || yyyy.length < 4) return 'Enter a complete date (MM / DD / YYYY)';
+    const date = new Date(`${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`);
+    if (isNaN(date.getTime())) return 'Invalid date';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (date < today) return 'Date cannot be in the past';
+    return '';
   };
 
   const validateForm = () => {
@@ -82,9 +98,16 @@ export default function CreatePostScreen() {
       Alert.alert('Error', 'Please select a post type');
       return false;
     }
-    if (!isQA && !intent) {
+    if (!isQA && !isRoommateOnly && !intent) {
       Alert.alert('Error', 'Please select an intent (Offer or Seek)');
       return false;
+    }
+    if (needsDates) {
+      const se = validateDate(startMM, startDD, startYYYY);
+      const ee = validateDate(endMM, endDD, endYYYY);
+      setStartDateError(se);
+      setEndDateError(ee);
+      if (se || ee) return false;
     }
     if (!wechatId.trim() && !phone.trim() && !email.trim()) {
       Alert.alert('Error', 'Please provide at least one contact method');
@@ -108,8 +131,8 @@ export default function CreatePostScreen() {
         intent: isQA ? null : intent,
         location: location.trim() || undefined,
         budget: budget ? parseFloat(budget) : undefined,
-        startDate: buildDateString(startMonth, startDay, startYear),
-        endDate: buildDateString(endMonth, endDay, endYear),
+        startDate: needsDates ? buildDateString(startMM, startDD, startYYYY) : undefined,
+        endDate: needsDates ? buildDateString(endMM, endDD, endYYYY) : undefined,
         createdAt: Date.now(),
         authorName: authorName.trim() || 'Anonymous',
         wechatId: wechatId.trim() || undefined,
@@ -130,8 +153,9 @@ export default function CreatePostScreen() {
             setIntent('OFFER');
             setLocation('');
             setBudget('');
-            setStartMonth(''); setStartDay(''); setStartYear('');
-            setEndMonth(''); setEndDay(''); setEndYear('');
+            setStartMM(''); setStartDD(''); setStartYYYY('');
+            setEndMM(''); setEndDD(''); setEndYYYY('');
+            setStartDateError(''); setEndDateError('');
             setAuthorName('');
             setWechatId('');
             setPhone('');
@@ -191,8 +215,8 @@ export default function CreatePostScreen() {
           ) : null}
         </View>
 
-        {/* Intent Selection (hidden for QA) */}
-        {!isQA && (
+        {/* Intent Selection (hidden for QA and ROOMMATE-only) */}
+        {!isQA && !isRoommateOnly && (
           <View style={styles.section}>
             <Text style={styles.label}>
               Intent <Text style={styles.required}>*</Text>
@@ -266,85 +290,73 @@ export default function CreatePostScreen() {
             <View style={styles.section}>
               <Text style={styles.label}>Start Date</Text>
               <View style={styles.dateRow}>
-                <View style={styles.dateField}>
-                  <Text style={styles.dateFieldLabel}>Month</Text>
-                  <TextInput
-                    style={styles.dateInput}
-                    placeholder="MM"
-                    value={startMonth}
-                    onChangeText={(v) => setStartMonth(v.replace(/[^0-9]/g, '').slice(0, 2))}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
-                <View style={styles.dateField}>
-                  <Text style={styles.dateFieldLabel}>Day</Text>
-                  <TextInput
-                    style={styles.dateInput}
-                    placeholder="DD"
-                    value={startDay}
-                    onChangeText={(v) => setStartDay(v.replace(/[^0-9]/g, '').slice(0, 2))}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
-                <View style={[styles.dateField, styles.dateFieldYear]}>
-                  <Text style={styles.dateFieldLabel}>Year</Text>
-                  <TextInput
-                    style={styles.dateInput}
-                    placeholder="YYYY"
-                    value={startYear}
-                    onChangeText={(v) => setStartYear(v.replace(/[^0-9]/g, '').slice(0, 4))}
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
+                <TextInput
+                  style={[styles.dateInput, { flex: 1 }]}
+                  placeholder="MM"
+                  value={startMM}
+                  onChangeText={(v) => { setStartMM(v.replace(/\D/g, '').slice(0, 2)); setStartDateError(''); }}
+                  keyboardType="numeric"
+                  maxLength={2}
+                  placeholderTextColor="#9CA3AF"
+                />
+                <Text style={styles.dateSep}>/</Text>
+                <TextInput
+                  style={[styles.dateInput, { flex: 1 }]}
+                  placeholder="DD"
+                  value={startDD}
+                  onChangeText={(v) => { setStartDD(v.replace(/\D/g, '').slice(0, 2)); setStartDateError(''); }}
+                  keyboardType="numeric"
+                  maxLength={2}
+                  placeholderTextColor="#9CA3AF"
+                />
+                <Text style={styles.dateSep}>/</Text>
+                <TextInput
+                  style={[styles.dateInput, { flex: 2 }]}
+                  placeholder="YYYY"
+                  value={startYYYY}
+                  onChangeText={(v) => { setStartYYYY(v.replace(/\D/g, '').slice(0, 4)); setStartDateError(''); }}
+                  keyboardType="numeric"
+                  maxLength={4}
+                  placeholderTextColor="#9CA3AF"
+                />
               </View>
+              {startDateError ? <Text style={styles.dateError}>{startDateError}</Text> : null}
             </View>
 
             <View style={styles.section}>
               <Text style={styles.label}>End Date</Text>
               <View style={styles.dateRow}>
-                <View style={styles.dateField}>
-                  <Text style={styles.dateFieldLabel}>Month</Text>
-                  <TextInput
-                    style={styles.dateInput}
-                    placeholder="MM"
-                    value={endMonth}
-                    onChangeText={(v) => setEndMonth(v.replace(/[^0-9]/g, '').slice(0, 2))}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
-                <View style={styles.dateField}>
-                  <Text style={styles.dateFieldLabel}>Day</Text>
-                  <TextInput
-                    style={styles.dateInput}
-                    placeholder="DD"
-                    value={endDay}
-                    onChangeText={(v) => setEndDay(v.replace(/[^0-9]/g, '').slice(0, 2))}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
-                <View style={[styles.dateField, styles.dateFieldYear]}>
-                  <Text style={styles.dateFieldLabel}>Year</Text>
-                  <TextInput
-                    style={styles.dateInput}
-                    placeholder="YYYY"
-                    value={endYear}
-                    onChangeText={(v) => setEndYear(v.replace(/[^0-9]/g, '').slice(0, 4))}
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
+                <TextInput
+                  style={[styles.dateInput, { flex: 1 }]}
+                  placeholder="MM"
+                  value={endMM}
+                  onChangeText={(v) => { setEndMM(v.replace(/\D/g, '').slice(0, 2)); setEndDateError(''); }}
+                  keyboardType="numeric"
+                  maxLength={2}
+                  placeholderTextColor="#9CA3AF"
+                />
+                <Text style={styles.dateSep}>/</Text>
+                <TextInput
+                  style={[styles.dateInput, { flex: 1 }]}
+                  placeholder="DD"
+                  value={endDD}
+                  onChangeText={(v) => { setEndDD(v.replace(/\D/g, '').slice(0, 2)); setEndDateError(''); }}
+                  keyboardType="numeric"
+                  maxLength={2}
+                  placeholderTextColor="#9CA3AF"
+                />
+                <Text style={styles.dateSep}>/</Text>
+                <TextInput
+                  style={[styles.dateInput, { flex: 2 }]}
+                  placeholder="YYYY"
+                  value={endYYYY}
+                  onChangeText={(v) => { setEndYYYY(v.replace(/\D/g, '').slice(0, 4)); setEndDateError(''); }}
+                  keyboardType="numeric"
+                  maxLength={4}
+                  placeholderTextColor="#9CA3AF"
+                />
               </View>
+              {endDateError ? <Text style={styles.dateError}>{endDateError}</Text> : null}
             </View>
           </>
         )}
@@ -516,19 +528,8 @@ const styles = StyleSheet.create({
   },
   dateRow: {
     flexDirection: 'row',
-    gap: 10,
-  },
-  dateField: {
-    flex: 1,
-  },
-  dateFieldYear: {
-    flex: 1.6,
-  },
-  dateFieldLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
-    marginBottom: 4,
+    alignItems: 'center',
+    gap: 4,
   },
   dateInput: {
     backgroundColor: '#FFFFFF',
@@ -540,6 +541,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#111827',
     textAlign: 'center',
+  },
+  dateSep: {
+    fontSize: 18,
+    color: '#9CA3AF',
+    fontWeight: '600',
+  },
+  dateError: {
+    fontSize: 13,
+    color: '#EF4444',
+    marginTop: 6,
   },
   submitButton: {
     backgroundColor: '#3B82F6',

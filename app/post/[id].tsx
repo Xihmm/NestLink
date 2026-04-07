@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams, Stack } from 'expo-router';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { usePostsStore } from '@/hooks/usePostsStore';
 import { PostType, PostIntent } from '@/types/post';
 
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getPostById } = usePostsStore();
+  const { getPostById, updatePostStatus, deletePost } = usePostsStore();
+  const router = useRouter();
   const [showContact, setShowContact] = useState(false);
 
   const post = getPostById(id);
@@ -65,6 +66,18 @@ export default function PostDetailScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Post Details' }} />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        {/* Status Banner */}
+        {post.status === 'FOUND' && (
+          <View style={[styles.statusBanner, { backgroundColor: '#D1FAE5' }]}>
+            <Text style={[styles.statusBannerText, { color: '#065F46' }]}>✅ Already Found</Text>
+          </View>
+        )}
+        {post.status === 'RENTED_OUT' && (
+          <View style={[styles.statusBanner, { backgroundColor: '#D1FAE5' }]}>
+            <Text style={[styles.statusBannerText, { color: '#065F46' }]}>🏠 Already Rented Out</Text>
+          </View>
+        )}
+
         {/* Header with badges */}
         <View style={styles.header}>
           <View style={styles.badges}>
@@ -183,6 +196,63 @@ export default function PostDetailScreen() {
             )}
           </View>
         )}
+
+        {/* Action Buttons */}
+        {!post.isSample && (() => {
+          const isHousing = post.types.includes('SUBLET') || post.types.includes('SHORT_TERM');
+          const isRoommateOnly = post.types.length === 1 && post.types.includes('ROOMMATE');
+          const isQAPost = post.types.includes('QA');
+          const showRentedOut = isHousing && post.intent === 'OFFER';
+          const showFound = isRoommateOnly || (isHousing && post.intent === 'SEEK');
+          return (
+          <View style={styles.actionSection}>
+            {showFound && post.status !== 'FOUND' && (
+              <TouchableOpacity
+                style={styles.actionButtonGreen}
+                onPress={() =>
+                  Alert.alert('Mark as Found', 'Mark this post as already found?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Yes, Mark Found', onPress: () => updatePostStatus(id, 'FOUND', post.isSample) },
+                  ])
+                }
+              >
+                <Text style={styles.actionButtonText}>Mark as Found 🎉</Text>
+              </TouchableOpacity>
+            )}
+            {showRentedOut && post.status !== 'RENTED_OUT' && (
+              <TouchableOpacity
+                style={styles.actionButtonGreen}
+                onPress={() =>
+                  Alert.alert('Mark as Rented Out', 'Mark this post as already rented out?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Yes, Mark Rented Out', onPress: () => updatePostStatus(id, 'RENTED_OUT', post.isSample) },
+                  ])
+                }
+              >
+                <Text style={styles.actionButtonText}>Mark as Rented Out 🏠</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.actionButtonRed}
+              onPress={() =>
+                Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                      await deletePost(id, post.isSample);
+                      router.replace('/(tabs)');
+                    },
+                  },
+                ])
+              }
+            >
+              <Text style={styles.actionButtonRedText}>Delete Post 🗑️</Text>
+            </TouchableOpacity>
+          </View>
+          );
+        })()}
 
         {/* Bottom padding */}
         <View style={styles.bottomPadding} />
@@ -355,6 +425,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#9CA3AF',
     textAlign: 'center',
+  },
+  statusBanner: {
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  statusBannerText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  actionSection: {
+    marginTop: 16,
+    gap: 10,
+  },
+  actionButtonGreen: {
+    backgroundColor: '#10B981',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  actionButtonRed: {
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  actionButtonRedText: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: '600',
   },
   bottomPadding: {
     height: 40,

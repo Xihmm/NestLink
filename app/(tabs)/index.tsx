@@ -91,9 +91,12 @@ export default function FeedScreen() {
     return '#9CA3AF'; // gray
   };
 
+  const isClosedStatus = (item: Post) =>
+    item.status === 'FOUND' || item.status === 'RENTED_OUT';
+
   const renderPostItem = ({ item }: { item: Post }) => (
     <TouchableOpacity
-      style={styles.postCard}
+      style={[styles.postCard, isClosedStatus(item) && styles.postCardClosed]}
       onPress={() => router.push(`/post/${item.id}`)}
       activeOpacity={0.7}
     >
@@ -110,7 +113,19 @@ export default function FeedScreen() {
             </View>
           )}
         </View>
-        <Text style={styles.timeAgo}>{getTimeAgo(item.createdAt)}</Text>
+        <View style={styles.cardTopRight}>
+          {item.status === 'FOUND' && (
+            <View style={styles.statusChip}>
+              <Text style={styles.statusChipText}>✅ Found</Text>
+            </View>
+          )}
+          {item.status === 'RENTED_OUT' && (
+            <View style={styles.statusChip}>
+              <Text style={styles.statusChipText}>🏠 Rented</Text>
+            </View>
+          )}
+          <Text style={styles.timeAgo}>{getTimeAgo(item.createdAt)}</Text>
+        </View>
       </View>
 
       <Text style={styles.postTitle}>{item.title}</Text>
@@ -310,11 +325,29 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
+  postCardClosed: {
+    opacity: 0.6,
+  },
   postHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 8,
+  },
+  cardTopRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  statusChip: {
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  statusChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#065F46',
   },
   badges: {
     flexDirection: 'row',

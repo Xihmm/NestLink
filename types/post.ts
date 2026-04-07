@@ -1,5 +1,6 @@
 export type PostType = "ROOMMATE" | "SUBLET" | "SHORT_TERM" | "QA";
 export type PostIntent = "OFFER" | "SEEK" | null;
+export type PostStatus = "ACTIVE" | "FOUND" | "RENTED_OUT" | "CLOSED";
 
 export interface Post {
   id: string;
@@ -17,6 +18,7 @@ export interface Post {
   phone?: string;
   email?: string;
   isSample?: boolean;
+  status?: PostStatus;
 }
 
 
