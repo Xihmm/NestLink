@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { usePostsStore } from '@/hooks/usePostsStore';
 import { PostType, PostIntent } from '@/types/post';
@@ -7,6 +7,7 @@ import { PostType, PostIntent } from '@/types/post';
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getPostById } = usePostsStore();
+  const [showContact, setShowContact] = useState(false);
 
   const post = getPostById(id);
 
@@ -141,6 +142,46 @@ export default function PostDetailScreen() {
           <Text style={styles.description}>{post.body}</Text>
         </View>
 
+        {/* Contact Section */}
+        {(post.wechatId || post.phone || post.email) && (
+          <View style={styles.contactSection}>
+            <Text style={styles.sectionTitle}>Contact</Text>
+            <TouchableOpacity
+              style={styles.showContactButton}
+              onPress={() => setShowContact(!showContact)}
+            >
+              <Text style={styles.showContactButtonText}>
+                {showContact ? 'Hide Contact Info' : 'Show Contact Info'}
+              </Text>
+            </TouchableOpacity>
+            {showContact && (
+              <View style={styles.contactDetails}>
+                {post.wechatId && (
+                  <View style={styles.contactRow}>
+                    <Text style={styles.contactIcon}>💬</Text>
+                    <Text style={styles.contactLabel}>WeChat</Text>
+                    <Text style={styles.contactValue}>{post.wechatId}</Text>
+                  </View>
+                )}
+                {post.phone && (
+                  <View style={styles.contactRow}>
+                    <Text style={styles.contactIcon}>📱</Text>
+                    <Text style={styles.contactLabel}>Phone</Text>
+                    <Text style={styles.contactValue}>{post.phone}</Text>
+                  </View>
+                )}
+                {post.email && (
+                  <View style={styles.contactRow}>
+                    <Text style={styles.contactIcon}>📧</Text>
+                    <Text style={styles.contactLabel}>Email</Text>
+                    <Text style={styles.contactValue}>{post.email}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Bottom padding */}
         <View style={styles.bottomPadding} />
       </ScrollView>
@@ -246,6 +287,50 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+  },
+  contactSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  showContactButton: {
+    backgroundColor: '#3B82F6',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  showContactButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  contactDetails: {
+    marginTop: 14,
+    gap: 10,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  contactIcon: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  contactLabel: {
+    width: 60,
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  contactValue: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '600',
   },
   description: {
     fontSize: 16,

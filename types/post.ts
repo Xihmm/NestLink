@@ -13,6 +13,10 @@ export interface Post {
   endDate?: string; // ISO string
   createdAt: number; // timestamp
   authorName?: string; // default "Anonymous"
+  wechatId?: string;
+  phone?: string;
+  email?: string;
+  isSample?: boolean;
 }
 
 

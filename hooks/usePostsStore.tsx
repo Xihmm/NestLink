@@ -1,66 +1,72 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { collection, query, orderBy, getDocs, addDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { Post } from '@/types/post';
 
 interface PostsContextType {
   posts: Post[];
-  addPost: (post: Post) => void;
+  loading: boolean;
+  addPost: (post: Post) => Promise<void>;
   getPostById: (id: string) => Post | undefined;
 }
 
 const PostsContext = createContext<PostsContextType | undefined>(undefined);
 
-// Sample seed data
 const SAMPLE_POSTS: Post[] = [
   {
-    id: '1',
+    id: 'sample-1',
     title: 'Looking for a Roommate in Downtown',
-    body: 'Hi! I\'m a grad student looking for a friendly roommate to share a 2BR apartment near campus. Clean, quiet, and respectful. Would love to meet someone with similar lifestyle. The place has a great kitchen and is close to public transit.',
+    body: "Hi! I'm a grad student looking for a friendly roommate to share a 2BR apartment near campus. Clean, quiet, and respectful. Would love to meet someone with similar lifestyle. The place has a great kitchen and is close to public transit.",
     type: 'ROOMMATE',
     intent: 'SEEK',
     location: 'Downtown Toronto',
     budget: 800,
-    createdAt: Date.now() - 2 * 60 * 60 * 1000, // 2 hours ago
+    createdAt: Date.now() - 2 * 60 * 60 * 1000,
     authorName: 'Sarah Chen',
+    isSample: true,
   },
   {
-    id: '2',
+    id: 'sample-2',
     title: 'Room Available in Shared House',
-    body: 'Large furnished room available in a 4-bedroom house. We\'re three engineering students, pretty chill. House has laundry, parking, and a nice backyard. Looking for someone who\'s tidy and friendly!',
+    body: "Large furnished room available in a 4-bedroom house. We're three engineering students, pretty chill. House has laundry, parking, and a nice backyard. Looking for someone who's tidy and friendly!",
     type: 'ROOMMATE',
     intent: 'OFFER',
     location: 'North York',
     budget: 750,
-    createdAt: Date.now() - 5 * 60 * 60 * 1000, // 5 hours ago
+    createdAt: Date.now() - 5 * 60 * 60 * 1000,
     authorName: 'Mike Johnson',
+    isSample: true,
   },
   {
-    id: '3',
+    id: 'sample-3',
     title: 'Summer Sublet Available (May-Aug)',
-    body: 'Subletting my 1BR apartment for the summer while I\'m away for an internship. Fully furnished, utilities included, great location near campus and shops. Perfect for summer students or interns!',
+    body: "Subletting my 1BR apartment for the summer while I'm away for an internship. Fully furnished, utilities included, great location near campus and shops. Perfect for summer students or interns!",
     type: 'SUBLET',
     intent: 'OFFER',
     location: 'Midtown',
     budget: 1200,
     startDate: '2025-05-01',
     endDate: '2025-08-31',
-    createdAt: Date.now() - 1 * 24 * 60 * 60 * 1000, // 1 day ago
+    createdAt: Date.now() - 1 * 24 * 60 * 60 * 1000,
     authorName: 'Alex Rivera',
+    isSample: true,
   },
   {
-    id: '4',
+    id: 'sample-4',
     title: 'Need Sublet for Winter Term',
-    body: 'Looking for a sublet from January to April while I\'m on co-op. Prefer something close to campus, furnished if possible. Budget flexible for the right place. Non-smoker, no pets.',
+    body: "Looking for a sublet from January to April while I'm on co-op. Prefer something close to campus, furnished if possible. Budget flexible for the right place. Non-smoker, no pets.",
     type: 'SUBLET',
     intent: 'SEEK',
     location: 'Near Campus',
     budget: 900,
     startDate: '2026-01-01',
     endDate: '2026-04-30',
-    createdAt: Date.now() - 3 * 60 * 60 * 1000, // 3 hours ago
+    createdAt: Date.now() - 3 * 60 * 60 * 1000,
     authorName: 'Jordan Lee',
+    isSample: true,
   },
   {
-    id: '5',
+    id: 'sample-5',
     title: 'Short-term Housing Available (2 months)',
     body: 'Private room available for 2 months starting immediately. Perfect for visiting students or those between leases. Quiet neighborhood, easy transit access. All utilities and WiFi included.',
     type: 'SHORT_TERM',
@@ -69,11 +75,12 @@ const SAMPLE_POSTS: Post[] = [
     budget: 950,
     startDate: '2025-01-15',
     endDate: '2025-03-15',
-    createdAt: Date.now() - 6 * 60 * 60 * 1000, // 6 hours ago
+    createdAt: Date.now() - 6 * 60 * 60 * 1000,
     authorName: 'Taylor Brown',
+    isSample: true,
   },
   {
-    id: '6',
+    id: 'sample-6',
     title: 'Looking for Short-term (6 weeks)',
     body: 'Need temporary housing for 6 weeks while my apartment is being renovated. Clean, respectful tenant with references. Okay with sharing. Please reach out if you have anything available!',
     type: 'SHORT_TERM',
@@ -82,41 +89,45 @@ const SAMPLE_POSTS: Post[] = [
     budget: 800,
     startDate: '2025-02-01',
     endDate: '2025-03-15',
-    createdAt: Date.now() - 4 * 60 * 60 * 1000, // 4 hours ago
+    createdAt: Date.now() - 4 * 60 * 60 * 1000,
     authorName: 'Pat Wilson',
+    isSample: true,
   },
   {
-    id: '7',
+    id: 'sample-7',
     title: 'Question: Best neighborhoods for students?',
-    body: 'Hi everyone! I\'m moving to the city for grad school this fall. What neighborhoods would you recommend for students? Looking for somewhere safe, affordable, and with good transit connections. Any advice appreciated!',
+    body: "Hi everyone! I'm moving to the city for grad school this fall. What neighborhoods would you recommend for students? Looking for somewhere safe, affordable, and with good transit connections. Any advice appreciated!",
     type: 'QA',
     intent: null,
     location: 'General',
-    createdAt: Date.now() - 8 * 60 * 60 * 1000, // 8 hours ago
+    createdAt: Date.now() - 8 * 60 * 60 * 1000,
     authorName: 'Chris Martinez',
+    isSample: true,
   },
   {
-    id: '8',
+    id: 'sample-8',
     title: 'Q: How to find reliable roommates?',
     body: 'First time looking for roommates. What are the best practices? Any red flags I should watch out for? How do you usually split utilities and handle conflicts? Thanks in advance!',
     type: 'QA',
     intent: null,
-    createdAt: Date.now() - 12 * 60 * 60 * 1000, // 12 hours ago
+    createdAt: Date.now() - 12 * 60 * 60 * 1000,
     authorName: 'Anonymous',
+    isSample: true,
   },
   {
-    id: '9',
+    id: 'sample-9',
     title: 'Room in 3BR Apartment - Female Roommates',
-    body: 'We\'re two female grad students looking for a third roommate. Nice apartment with updated kitchen, in-unit laundry, and balcony. We enjoy cooking together and movie nights. Looking for someone chill and considerate!',
+    body: "We're two female grad students looking for a third roommate. Nice apartment with updated kitchen, in-unit laundry, and balcony. We enjoy cooking together and movie nights. Looking for someone chill and considerate!",
     type: 'ROOMMATE',
     intent: 'OFFER',
     location: 'West End',
     budget: 850,
-    createdAt: Date.now() - 10 * 60 * 60 * 1000, // 10 hours ago
+    createdAt: Date.now() - 10 * 60 * 60 * 1000,
     authorName: 'Emma & Lisa',
+    isSample: true,
   },
   {
-    id: '10',
+    id: 'sample-10',
     title: 'Sublet my Studio for 3 months',
     body: 'Going abroad for research. Subletting my cozy studio apartment downtown. Fully furnished with everything you need. Building has gym and study rooms. Perfect for a student who wants their own space.',
     type: 'SUBLET',
@@ -125,20 +136,22 @@ const SAMPLE_POSTS: Post[] = [
     budget: 1400,
     startDate: '2025-03-01',
     endDate: '2025-05-31',
-    createdAt: Date.now() - 15 * 60 * 60 * 1000, // 15 hours ago
+    createdAt: Date.now() - 15 * 60 * 60 * 1000,
     authorName: 'David Kim',
+    isSample: true,
   },
   {
-    id: '11',
+    id: 'sample-11',
     title: 'Question: Average rent prices?',
-    body: 'What\'s the typical rent range for a room in a shared apartment in this city? Trying to budget for next semester. Also, do most places include utilities or are they separate? Thanks!',
+    body: "What's the typical rent range for a room in a shared apartment in this city? Trying to budget for next semester. Also, do most places include utilities or are they separate? Thanks!",
     type: 'QA',
     intent: null,
-    createdAt: Date.now() - 20 * 60 * 60 * 1000, // 20 hours ago
+    createdAt: Date.now() - 20 * 60 * 60 * 1000,
     authorName: 'Sam Thompson',
+    isSample: true,
   },
   {
-    id: '12',
+    id: 'sample-12',
     title: 'Need place ASAP - 1 month',
     body: 'Emergency situation - need short-term housing for about 1 month starting next week. Responsible tenant, can provide references. Any leads appreciated!',
     type: 'SHORT_TERM',
@@ -147,24 +160,52 @@ const SAMPLE_POSTS: Post[] = [
     budget: 1000,
     startDate: '2025-01-10',
     endDate: '2025-02-10',
-    createdAt: Date.now() - 30 * 60 * 1000, // 30 minutes ago
+    createdAt: Date.now() - 30 * 60 * 1000,
     authorName: 'Anonymous',
+    isSample: true,
   },
 ];
 
 export const PostsProvider = ({ children }: { children: ReactNode }) => {
   const [posts, setPosts] = useState<Post[]>(SAMPLE_POSTS);
+  const [loading, setLoading] = useState(true);
 
-  const addPost = (post: Post) => {
-    setPosts((prevPosts) => [post, ...prevPosts]); // New posts at the top
+  useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        const realPosts: Post[] = snapshot.docs.map((doc) => ({
+          ...(doc.data() as Omit<Post, 'id'>),
+          id: doc.id,
+        }));
+        setPosts([...realPosts, ...SAMPLE_POSTS]);
+      } catch (error) {
+        console.error('Failed to fetch posts from Firestore:', error);
+        // Fall back to sample posts only
+        setPosts(SAMPLE_POSTS);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPosts();
+  }, []);
+
+  const addPost = async (post: Post) => {
+    const { id, isSample, ...firestoreData } = post;
+    const cleanData = Object.fromEntries(
+      Object.entries(firestoreData).filter(([_, v]) => v !== undefined)
+    );
+    const docRef = await addDoc(collection(db, 'posts'), cleanData);
+    const savedPost: Post = { ...post, id: docRef.id };
+    setPosts((prev) => [savedPost, ...prev]);
   };
 
-  const getPostById = (id: string) => {
-    return posts.find((post) => post.id === id);
-  };
+  const getPostById = (id: string) => posts.find((post) => post.id === id);
 
   return (
-    <PostsContext.Provider value={{ posts, addPost, getPostById }}>
+    <PostsContext.Provider value={{ posts, loading, addPost, getPostById }}>
       {children}
     </PostsContext.Provider>
   );
@@ -177,5 +218,3 @@ export const usePostsStore = () => {
   }
   return context;
 };
-
-

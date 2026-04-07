@@ -187,8 +187,8 @@ export default function FeedScreen() {
         <TypeFilterButton type="QA" label="Q&A" />
       </ScrollView>
 
-      {/* Intent Filter (hidden for QA) */}
-      {filterType !== 'QA' && (
+      {/* Intent Filter — always reserve space to prevent layout shift */}
+      {filterType !== 'QA' ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -199,6 +199,8 @@ export default function FeedScreen() {
           <IntentFilterButton intent="OFFER" label="Offering" />
           <IntentFilterButton intent="SEEK" label="Seeking" />
         </ScrollView>
+      ) : (
+        <View style={styles.filterRowPlaceholder} />
       )}
 
       {/* Posts List */}
@@ -222,13 +224,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
+    paddingTop: 8,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginTop: 12,
+    marginTop: 8,
     marginBottom: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -251,12 +254,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   filterRow: {
-    maxHeight: 50,
+    height: 44,
+    marginBottom: 8,
+  },
+  filterRowPlaceholder: {
+    height: 44,
     marginBottom: 8,
   },
   filterRowContent: {
     paddingHorizontal: 16,
+    paddingVertical: 4,
     gap: 8,
+    alignItems: 'center',
   },
   filterButton: {
     paddingHorizontal: 16,
