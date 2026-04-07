@@ -5,7 +5,7 @@ export interface Post {
   id: string;
   title: string;
   body: string;
-  type: PostType;
+  types: PostType[];
   intent: PostIntent;
   location?: string;
   budget?: number;

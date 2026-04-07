@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePostsStore } from '@/hooks/usePostsStore';
-import { PostType, PostIntent } from '@/types/post';
+import { Post, PostType, PostIntent } from '@/types/post';
 
 export default function CreatePostScreen() {
   const router = useRouter();
@@ -20,7 +20,8 @@ export default function CreatePostScreen() {
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [type, setType] = useState<PostType | ''>('');
+  const [types, setTypes] = useState<PostType[]>([]);
+  const [typeWarning, setTypeWarning] = useState('');
   const [intent, setIntent] = useState<PostIntent>('OFFER');
   const [location, setLocation] = useState('');
   const [budget, setBudget] = useState('');
@@ -36,8 +37,32 @@ export default function CreatePostScreen() {
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const needsDates = type === 'SUBLET' || type === 'SHORT_TERM';
-  const isQA = type === 'QA';
+  const isQA = types.includes('QA');
+  const needsDates = types.includes('SUBLET') || types.includes('SHORT_TERM');
+
+  const toggleType = (value: PostType) => {
+    let next: PostType[];
+    if (value === 'QA') {
+      // QA always alone — selecting it clears everything else
+      next = ['QA'];
+    } else if (types.includes('QA')) {
+      // Selecting a non-QA type clears QA
+      next = [value];
+    } else if (types.includes(value)) {
+      // Deselect — but don't allow empty
+      next = types.filter((t) => t !== value);
+      if (next.length === 0) return;
+    } else {
+      next = [...types, value];
+    }
+    setTypeWarning('');
+    setTypes(next);
+    if (next.includes('QA')) {
+      setIntent(null);
+    } else if (!intent) {
+      setIntent('OFFER');
+    }
+  };
 
   const buildDateString = (month: string, day: string, year: string) => {
     if (!month || !day || !year || year.length < 4) return undefined;
@@ -53,7 +78,7 @@ export default function CreatePostScreen() {
       Alert.alert('Error', 'Please enter a description');
       return false;
     }
-    if (!type) {
+    if (types.length === 0) {
       Alert.alert('Error', 'Please select a post type');
       return false;
     }
@@ -75,11 +100,11 @@ export default function CreatePostScreen() {
     setSubmitting(true);
 
     try {
-      const newPost = {
+      const newPost: Post = {
         id: Date.now().toString(),
         title: title.trim(),
         body: body.trim(),
-        type: type as PostType,
+        types,
         intent: isQA ? null : intent,
         location: location.trim() || undefined,
         budget: budget ? parseFloat(budget) : undefined,
@@ -100,7 +125,8 @@ export default function CreatePostScreen() {
           onPress: () => {
             setTitle('');
             setBody('');
-            setType('');
+            setTypes([]);
+            setTypeWarning('');
             setIntent('OFFER');
             setLocation('');
             setBudget('');
@@ -122,17 +148,10 @@ export default function CreatePostScreen() {
 
   const TypeButton = ({ value, label }: { value: PostType; label: string }) => (
     <TouchableOpacity
-      style={[styles.typeButton, type === value && styles.typeButtonActive]}
-      onPress={() => {
-        setType(value);
-        if (value === 'QA') {
-          setIntent(null);
-        } else if (!intent) {
-          setIntent('OFFER');
-        }
-      }}
+      style={[styles.typeButton, types.includes(value) && styles.typeButtonActive]}
+      onPress={() => toggleType(value)}
     >
-      <Text style={[styles.typeButtonText, type === value && styles.typeButtonTextActive]}>
+      <Text style={[styles.typeButtonText, types.includes(value) && styles.typeButtonTextActive]}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -167,6 +186,9 @@ export default function CreatePostScreen() {
             <TypeButton value="SHORT_TERM" label="Short-term" />
             <TypeButton value="QA" label="Q&A" />
           </View>
+          {typeWarning ? (
+            <Text style={styles.typeWarning}>{typeWarning}</Text>
+          ) : null}
         </View>
 
         {/* Intent Selection (hidden for QA) */}
@@ -432,6 +454,11 @@ const styles = StyleSheet.create({
   },
   contactInput: {
     marginBottom: 10,
+  },
+  typeWarning: {
+    fontSize: 13,
+    color: '#F59E0B',
+    marginTop: 8,
   },
   typeGrid: {
     flexDirection: 'row',

@@ -26,12 +26,12 @@ export default function FeedScreen() {
   const filteredPosts = useMemo(() => {
     return posts.filter((post) => {
       // Type filter
-      if (filterType !== 'ALL' && post.type !== filterType) {
+      if (filterType !== 'ALL' && !post.types.includes(filterType)) {
         return false;
       }
 
-      // Intent filter (only when not QA)
-      if (filterIntent !== 'ALL' && post.type !== 'QA') {
+      // Intent filter (skip for QA posts)
+      if (filterIntent !== 'ALL' && !post.types.includes('QA')) {
         if (post.intent !== filterIntent) {
           return false;
         }
@@ -99,9 +99,11 @@ export default function FeedScreen() {
     >
       <View style={styles.postHeader}>
         <View style={styles.badges}>
-          <View style={[styles.badge, { backgroundColor: getTypeBadgeColor(item.type) }]}>
-            <Text style={styles.badgeText}>{item.type}</Text>
-          </View>
+          {item.types.map((t) => (
+            <View key={t} style={[styles.badge, { backgroundColor: getTypeBadgeColor(t) }]}>
+              <Text style={styles.badgeText}>{t}</Text>
+            </View>
+          ))}
           {item.intent && (
             <View style={[styles.badge, { backgroundColor: getIntentBadgeColor(item.intent) }]}>
               <Text style={styles.badgeText}>{item.intent}</Text>
@@ -128,7 +130,14 @@ export default function FeedScreen() {
         )}
       </View>
 
-      <Text style={styles.authorText}>by {item.authorName || 'Anonymous'}</Text>
+      <View style={styles.authorRow}>
+        <Text style={styles.authorText}>by {item.authorName || 'Anonymous'}</Text>
+        {item.isSample && (
+          <View style={styles.sampleBadge}>
+            <Text style={styles.sampleBadgeText}>Sample</Text>
+          </View>
+        )}
+      </View>
     </TouchableOpacity>
   );
 
@@ -173,35 +182,34 @@ export default function FeedScreen() {
         )}
       </View>
 
-      {/* Type Filter */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterRow}
-        contentContainerStyle={styles.filterRowContent}
-      >
-        <TypeFilterButton type="ALL" label="All" />
-        <TypeFilterButton type="ROOMMATE" label="Roommate" />
-        <TypeFilterButton type="SUBLET" label="Sublet" />
-        <TypeFilterButton type="SHORT_TERM" label="Short-term" />
-        <TypeFilterButton type="QA" label="Q&A" />
-      </ScrollView>
-
-      {/* Intent Filter — always reserve space to prevent layout shift */}
-      {filterType !== 'QA' ? (
+      {/* Filter rows — fixed-height parent so layout never shifts */}
+      <View style={styles.filterSection}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.filterRow}
           contentContainerStyle={styles.filterRowContent}
         >
+          <TypeFilterButton type="ALL" label="All" />
+          <TypeFilterButton type="ROOMMATE" label="Roommate" />
+          <TypeFilterButton type="SUBLET" label="Sublet" />
+          <TypeFilterButton type="SHORT_TERM" label="Short-term" />
+          <TypeFilterButton type="QA" label="Q&A" />
+        </ScrollView>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={[styles.filterRow, filterType === 'QA' && { opacity: 0 }]}
+          contentContainerStyle={styles.filterRowContent}
+          scrollEnabled={filterType !== 'QA'}
+          pointerEvents={filterType === 'QA' ? 'none' : 'auto'}
+        >
           <IntentFilterButton intent="ALL" label="All" />
           <IntentFilterButton intent="OFFER" label="Offering" />
           <IntentFilterButton intent="SEEK" label="Seeking" />
         </ScrollView>
-      ) : (
-        <View style={styles.filterRowPlaceholder} />
-      )}
+      </View>
 
       {/* Posts List */}
       <FlatList
@@ -253,11 +261,10 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     paddingHorizontal: 4,
   },
-  filterRow: {
-    height: 44,
-    marginBottom: 8,
+  filterSection: {
+    height: 100,
   },
-  filterRowPlaceholder: {
+  filterRow: {
     height: 44,
     marginBottom: 8,
   },
@@ -350,10 +357,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#4B5563',
   },
+  authorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   authorText: {
     fontSize: 12,
     color: '#9CA3AF',
     fontStyle: 'italic',
+  },
+  sampleBadge: {
+    backgroundColor: '#E5E7EB',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  sampleBadgeText: {
+    fontSize: 10,
+    color: '#6B7280',
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',

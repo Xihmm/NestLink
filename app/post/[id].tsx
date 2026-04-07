@@ -68,9 +68,11 @@ export default function PostDetailScreen() {
         {/* Header with badges */}
         <View style={styles.header}>
           <View style={styles.badges}>
-            <View style={[styles.badge, { backgroundColor: getTypeBadgeColor(post.type) }]}>
-              <Text style={styles.badgeText}>{post.type}</Text>
-            </View>
+            {post.types.map((t) => (
+              <View key={t} style={[styles.badge, { backgroundColor: getTypeBadgeColor(t) }]}>
+                <Text style={styles.badgeText}>{t}</Text>
+              </View>
+            ))}
             {post.intent && (
               <View style={[styles.badge, { backgroundColor: getIntentBadgeColor(post.intent) }]}>
                 <Text style={styles.badgeText}>{post.intent}</Text>

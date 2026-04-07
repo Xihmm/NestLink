@@ -17,7 +17,7 @@ const SAMPLE_POSTS: Post[] = [
     id: 'sample-1',
     title: 'Looking for a Roommate in Downtown',
     body: "Hi! I'm a grad student looking for a friendly roommate to share a 2BR apartment near campus. Clean, quiet, and respectful. Would love to meet someone with similar lifestyle. The place has a great kitchen and is close to public transit.",
-    type: 'ROOMMATE',
+    types: ['ROOMMATE'],
     intent: 'SEEK',
     location: 'Downtown Toronto',
     budget: 800,
@@ -29,7 +29,7 @@ const SAMPLE_POSTS: Post[] = [
     id: 'sample-2',
     title: 'Room Available in Shared House',
     body: "Large furnished room available in a 4-bedroom house. We're three engineering students, pretty chill. House has laundry, parking, and a nice backyard. Looking for someone who's tidy and friendly!",
-    type: 'ROOMMATE',
+    types: ['ROOMMATE'],
     intent: 'OFFER',
     location: 'North York',
     budget: 750,
@@ -41,7 +41,7 @@ const SAMPLE_POSTS: Post[] = [
     id: 'sample-3',
     title: 'Summer Sublet Available (May-Aug)',
     body: "Subletting my 1BR apartment for the summer while I'm away for an internship. Fully furnished, utilities included, great location near campus and shops. Perfect for summer students or interns!",
-    type: 'SUBLET',
+    types: ['SUBLET'],
     intent: 'OFFER',
     location: 'Midtown',
     budget: 1200,
@@ -55,7 +55,7 @@ const SAMPLE_POSTS: Post[] = [
     id: 'sample-4',
     title: 'Need Sublet for Winter Term',
     body: "Looking for a sublet from January to April while I'm on co-op. Prefer something close to campus, furnished if possible. Budget flexible for the right place. Non-smoker, no pets.",
-    type: 'SUBLET',
+    types: ['SUBLET'],
     intent: 'SEEK',
     location: 'Near Campus',
     budget: 900,
@@ -69,7 +69,7 @@ const SAMPLE_POSTS: Post[] = [
     id: 'sample-5',
     title: 'Short-term Housing Available (2 months)',
     body: 'Private room available for 2 months starting immediately. Perfect for visiting students or those between leases. Quiet neighborhood, easy transit access. All utilities and WiFi included.',
-    type: 'SHORT_TERM',
+    types: ['SHORT_TERM'],
     intent: 'OFFER',
     location: 'East End',
     budget: 950,
@@ -83,7 +83,7 @@ const SAMPLE_POSTS: Post[] = [
     id: 'sample-6',
     title: 'Looking for Short-term (6 weeks)',
     body: 'Need temporary housing for 6 weeks while my apartment is being renovated. Clean, respectful tenant with references. Okay with sharing. Please reach out if you have anything available!',
-    type: 'SHORT_TERM',
+    types: ['SHORT_TERM'],
     intent: 'SEEK',
     location: 'Anywhere in City',
     budget: 800,
@@ -97,7 +97,7 @@ const SAMPLE_POSTS: Post[] = [
     id: 'sample-7',
     title: 'Question: Best neighborhoods for students?',
     body: "Hi everyone! I'm moving to the city for grad school this fall. What neighborhoods would you recommend for students? Looking for somewhere safe, affordable, and with good transit connections. Any advice appreciated!",
-    type: 'QA',
+    types: ['QA'],
     intent: null,
     location: 'General',
     createdAt: Date.now() - 8 * 60 * 60 * 1000,
@@ -108,7 +108,7 @@ const SAMPLE_POSTS: Post[] = [
     id: 'sample-8',
     title: 'Q: How to find reliable roommates?',
     body: 'First time looking for roommates. What are the best practices? Any red flags I should watch out for? How do you usually split utilities and handle conflicts? Thanks in advance!',
-    type: 'QA',
+    types: ['QA'],
     intent: null,
     createdAt: Date.now() - 12 * 60 * 60 * 1000,
     authorName: 'Anonymous',
@@ -118,7 +118,7 @@ const SAMPLE_POSTS: Post[] = [
     id: 'sample-9',
     title: 'Room in 3BR Apartment - Female Roommates',
     body: "We're two female grad students looking for a third roommate. Nice apartment with updated kitchen, in-unit laundry, and balcony. We enjoy cooking together and movie nights. Looking for someone chill and considerate!",
-    type: 'ROOMMATE',
+    types: ['ROOMMATE'],
     intent: 'OFFER',
     location: 'West End',
     budget: 850,
@@ -130,7 +130,7 @@ const SAMPLE_POSTS: Post[] = [
     id: 'sample-10',
     title: 'Sublet my Studio for 3 months',
     body: 'Going abroad for research. Subletting my cozy studio apartment downtown. Fully furnished with everything you need. Building has gym and study rooms. Perfect for a student who wants their own space.',
-    type: 'SUBLET',
+    types: ['SUBLET'],
     intent: 'OFFER',
     location: 'Downtown',
     budget: 1400,
@@ -144,7 +144,7 @@ const SAMPLE_POSTS: Post[] = [
     id: 'sample-11',
     title: 'Question: Average rent prices?',
     body: "What's the typical rent range for a room in a shared apartment in this city? Trying to budget for next semester. Also, do most places include utilities or are they separate? Thanks!",
-    type: 'QA',
+    types: ['QA'],
     intent: null,
     createdAt: Date.now() - 20 * 60 * 60 * 1000,
     authorName: 'Sam Thompson',
@@ -154,7 +154,7 @@ const SAMPLE_POSTS: Post[] = [
     id: 'sample-12',
     title: 'Need place ASAP - 1 month',
     body: 'Emergency situation - need short-term housing for about 1 month starting next week. Responsible tenant, can provide references. Any leads appreciated!',
-    type: 'SHORT_TERM',
+    types: ['SHORT_TERM'],
     intent: 'SEEK',
     location: 'Any',
     budget: 1000,
@@ -175,10 +175,11 @@ export const PostsProvider = ({ children }: { children: ReactNode }) => {
       try {
         const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
         const snapshot = await getDocs(q);
-        const realPosts: Post[] = snapshot.docs.map((doc) => ({
-          ...(doc.data() as Omit<Post, 'id'>),
-          id: doc.id,
-        }));
+        const realPosts: Post[] = snapshot.docs.map((doc) => {
+          const data = doc.data() as Omit<Post, 'id'> & { type?: string };
+          const types = data.types ?? (data.type ? [data.type as import('@/types/post').PostType] : []);
+          return { ...data, id: doc.id, types };
+        });
         setPosts([...realPosts, ...SAMPLE_POSTS]);
       } catch (error) {
         console.error('Failed to fetch posts from Firestore:', error);
