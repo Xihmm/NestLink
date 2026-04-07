@@ -2,11 +2,13 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { collection, query, orderBy, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Post, PostStatus } from '@/types/post';
+import { useAuth } from '@/hooks/useAuth';
 
 interface PostsContextType {
   posts: Post[];
   loading: boolean;
   addPost: (post: Post) => Promise<void>;
+  updatePost: (id: string, updates: Partial<Post>, isSample?: boolean) => Promise<void>;
   updatePostStatus: (id: string, status: PostStatus, isSample?: boolean) => Promise<void>;
   deletePost: (id: string, isSample?: boolean) => Promise<void>;
   getPostById: (id: string) => Post | undefined;
@@ -169,6 +171,7 @@ const SAMPLE_POSTS: Post[] = [
 ];
 
 export const PostsProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
   const [posts, setPosts] = useState<Post[]>(SAMPLE_POSTS);
   const [loading, setLoading] = useState(true);
 
@@ -197,12 +200,25 @@ export const PostsProvider = ({ children }: { children: ReactNode }) => {
 
   const addPost = async (post: Post) => {
     const { id, isSample, ...firestoreData } = post;
+    const dataWithAuthor = { ...firestoreData, authorId: user?.uid ?? null };
     const cleanData = Object.fromEntries(
-      Object.entries(firestoreData).filter(([_, v]) => v !== undefined)
+      Object.entries(dataWithAuthor).filter(([_, v]) => v !== undefined && v !== null)
     );
     const docRef = await addDoc(collection(db, 'posts'), cleanData);
-    const savedPost: Post = { ...post, id: docRef.id };
+    const savedPost: Post = { ...post, id: docRef.id, authorId: user?.uid };
     setPosts((prev) => [savedPost, ...prev]);
+  };
+
+  const updatePost = async (id: string, updates: Partial<Post>, isSample = false) => {
+    if (!isSample) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { isSample: _s, id: _id, ...firestoreUpdates } = updates as Post;
+      const cleanData = Object.fromEntries(
+        Object.entries(firestoreUpdates).filter(([_, v]) => v !== undefined && v !== null)
+      );
+      await updateDoc(doc(db, 'posts', id), cleanData);
+    }
+    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
   };
 
   const updatePostStatus = async (id: string, status: PostStatus, isSample = false) => {
@@ -222,7 +238,7 @@ export const PostsProvider = ({ children }: { children: ReactNode }) => {
   const getPostById = (id: string) => posts.find((post) => post.id === id);
 
   return (
-    <PostsContext.Provider value={{ posts, loading, addPost, updatePostStatus, deletePost, getPostById }}>
+    <PostsContext.Provider value={{ posts, loading, addPost, updatePost, updatePostStatus, deletePost, getPostById }}>
       {children}
     </PostsContext.Provider>
   );

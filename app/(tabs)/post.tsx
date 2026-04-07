@@ -9,8 +9,12 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/lib/firebase';
 import { usePostsStore } from '@/hooks/usePostsStore';
 import { Post, PostType, PostIntent } from '@/types/post';
 
@@ -37,6 +41,7 @@ export default function CreatePostScreen() {
   const [wechatId, setWechatId] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [imageUris, setImageUris] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   const isQA = types.includes('QA');
@@ -85,6 +90,31 @@ export default function CreatePostScreen() {
     return '';
   };
 
+  const pickImages = async () => {
+    if (imageUris.length >= 3) {
+      Alert.alert('Limit reached', 'You can upload up to 3 photos per post.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsMultipleSelection: true,
+      selectionLimit: 3 - imageUris.length,
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      const uris = result.assets.map((a) => a.uri);
+      setImageUris((prev) => [...prev, ...uris].slice(0, 3));
+    }
+  };
+
+  const uploadImage = async (uri: string, tempId: string, index: number): Promise<string> => {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    const imageRef = storageRef(storage, `posts/${tempId}/${Date.now()}_${index}.jpg`);
+    await uploadBytes(imageRef, blob);
+    return await getDownloadURL(imageRef);
+  };
+
   const validateForm = () => {
     if (!title.trim()) {
       Alert.alert('Error', 'Please enter a title');
@@ -123,8 +153,16 @@ export default function CreatePostScreen() {
     setSubmitting(true);
 
     try {
+      const tempId = Date.now().toString();
+      let imageUrls: string[] = [];
+      if (imageUris.length > 0) {
+        imageUrls = await Promise.all(
+          imageUris.map((uri, i) => uploadImage(uri, tempId, i))
+        );
+      }
+
       const newPost: Post = {
-        id: Date.now().toString(),
+        id: tempId,
         title: title.trim(),
         body: body.trim(),
         types,
@@ -138,6 +176,7 @@ export default function CreatePostScreen() {
         wechatId: wechatId.trim() || undefined,
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
       };
 
       await addPost(newPost);
@@ -160,6 +199,7 @@ export default function CreatePostScreen() {
             setWechatId('');
             setPhone('');
             setEmail('');
+            setImageUris([]);
             setSubmitting(false);
             router.replace('/(tabs)');
           },
@@ -405,6 +445,31 @@ export default function CreatePostScreen() {
           />
         </View>
 
+        {/* Photos */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Photos (optional)</Text>
+          <View style={styles.imageRow}>
+            {imageUris.map((uri, i) => (
+              <View key={i} style={styles.imageThumbContainer}>
+                <Image source={{ uri }} style={styles.imageThumb} />
+                <TouchableOpacity
+                  style={styles.removeImageButton}
+                  onPress={() => setImageUris((prev) => prev.filter((_, idx) => idx !== i))}
+                >
+                  <Text style={styles.removeImageText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+            {imageUris.length < 3 && (
+              <TouchableOpacity style={styles.addImageButton} onPress={pickImages}>
+                <Text style={styles.addImageIcon}>+</Text>
+                <Text style={styles.addImageText}>Add Photo</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <Text style={styles.imageHint}>{imageUris.length}/3 photos</Text>
+        </View>
+
         {/* Submit Button */}
         <TouchableOpacity
           style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
@@ -552,6 +617,22 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     marginTop: 6,
   },
+  imageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  imageThumbContainer: { position: 'relative' },
+  imageThumb: { width: 90, height: 90, borderRadius: 8, backgroundColor: '#E5E7EB' },
+  removeImageButton: {
+    position: 'absolute', top: -6, right: -6,
+    backgroundColor: '#EF4444', borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center',
+  },
+  removeImageText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  addImageButton: {
+    width: 90, height: 90, borderRadius: 8, backgroundColor: '#F3F4F6',
+    borderWidth: 2, borderColor: '#E5E7EB', borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center', gap: 4,
+  },
+  addImageIcon: { fontSize: 24, color: '#9CA3AF' },
+  addImageText: { fontSize: 11, color: '#9CA3AF', fontWeight: '500' },
+  imageHint: { fontSize: 13, color: '#9CA3AF', marginTop: 8 },
   submitButton: {
     backgroundColor: '#3B82F6',
     paddingVertical: 16,

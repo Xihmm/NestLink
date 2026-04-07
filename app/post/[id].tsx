@@ -1,14 +1,26 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  Image,
+} from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import { usePostsStore } from '@/hooks/usePostsStore';
+import { useAuth } from '@/hooks/useAuth';
 import { PostType, PostIntent } from '@/types/post';
 
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getPostById, updatePostStatus, deletePost } = usePostsStore();
+  const { user: currentUser } = useAuth();
   const router = useRouter();
   const [showContact, setShowContact] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const post = getPostById(id);
 
@@ -45,14 +57,10 @@ export default function PostDetailScreen() {
 
   const getTypeBadgeColor = (type: PostType) => {
     switch (type) {
-      case 'ROOMMATE':
-        return '#3B82F6';
-      case 'SUBLET':
-        return '#10B981';
-      case 'SHORT_TERM':
-        return '#F59E0B';
-      case 'QA':
-        return '#8B5CF6';
+      case 'ROOMMATE': return '#3B82F6';
+      case 'SUBLET': return '#10B981';
+      case 'SHORT_TERM': return '#F59E0B';
+      case 'QA': return '#8B5CF6';
     }
   };
 
@@ -61,6 +69,14 @@ export default function PostDetailScreen() {
     if (intent === 'SEEK') return '#6366F1';
     return '#9CA3AF';
   };
+
+  const copyToClipboard = async (text: string, field: string) => {
+    await Clipboard.setStringAsync(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const isOwner = !post.isSample && currentUser?.uid != null && currentUser.uid === post.authorId;
 
   return (
     <View style={styles.container}>
@@ -104,11 +120,21 @@ export default function PostDetailScreen() {
         {/* Divider */}
         <View style={styles.divider} />
 
+        {/* Images */}
+        {post.imageUrls && post.imageUrls.length > 0 && (
+          <View style={styles.imagesSection}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imagesScroll}>
+              {post.imageUrls.map((url, i) => (
+                <Image key={i} source={{ uri: url }} style={styles.postImage} resizeMode="cover" />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Details Section */}
         {(post.location || post.budget || post.startDate || post.endDate) && (
           <View style={styles.detailsSection}>
             <Text style={styles.sectionTitle}>Details</Text>
-            
             {post.location && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailIcon}>📍</Text>
@@ -118,7 +144,6 @@ export default function PostDetailScreen() {
                 </View>
               </View>
             )}
-
             {post.budget && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailIcon}>💰</Text>
@@ -128,7 +153,6 @@ export default function PostDetailScreen() {
                 </View>
               </View>
             )}
-
             {post.startDate && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailIcon}>📅</Text>
@@ -138,7 +162,6 @@ export default function PostDetailScreen() {
                 </View>
               </View>
             )}
-
             {post.endDate && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailIcon}>📅</Text>
@@ -176,6 +199,14 @@ export default function PostDetailScreen() {
                     <Text style={styles.contactIcon}>💬</Text>
                     <Text style={styles.contactLabel}>WeChat</Text>
                     <Text style={styles.contactValue}>{post.wechatId}</Text>
+                    <TouchableOpacity
+                      style={styles.copyButton}
+                      onPress={() => copyToClipboard(post.wechatId!, 'wechat')}
+                    >
+                      <Text style={styles.copyButtonText}>
+                        {copiedField === 'wechat' ? 'Copied!' : '📋'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
                 {post.phone && (
@@ -183,6 +214,14 @@ export default function PostDetailScreen() {
                     <Text style={styles.contactIcon}>📱</Text>
                     <Text style={styles.contactLabel}>Phone</Text>
                     <Text style={styles.contactValue}>{post.phone}</Text>
+                    <TouchableOpacity
+                      style={styles.copyButton}
+                      onPress={() => copyToClipboard(post.phone!, 'phone')}
+                    >
+                      <Text style={styles.copyButtonText}>
+                        {copiedField === 'phone' ? 'Copied!' : '📋'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
                 {post.email && (
@@ -190,6 +229,14 @@ export default function PostDetailScreen() {
                     <Text style={styles.contactIcon}>📧</Text>
                     <Text style={styles.contactLabel}>Email</Text>
                     <Text style={styles.contactValue}>{post.email}</Text>
+                    <TouchableOpacity
+                      style={styles.copyButton}
+                      onPress={() => copyToClipboard(post.email!, 'email')}
+                    >
+                      <Text style={styles.copyButtonText}>
+                        {copiedField === 'email' ? 'Copied!' : '📋'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
@@ -197,64 +244,68 @@ export default function PostDetailScreen() {
           </View>
         )}
 
-        {/* Action Buttons */}
-        {!post.isSample && (() => {
+        {/* Action Buttons — only shown to the post owner */}
+        {isOwner && (() => {
           const isHousing = post.types.includes('SUBLET') || post.types.includes('SHORT_TERM');
           const isRoommateOnly = post.types.length === 1 && post.types.includes('ROOMMATE');
-          const isQAPost = post.types.includes('QA');
           const showRentedOut = isHousing && post.intent === 'OFFER';
           const showFound = isRoommateOnly || (isHousing && post.intent === 'SEEK');
           return (
-          <View style={styles.actionSection}>
-            {showFound && post.status !== 'FOUND' && (
+            <View style={styles.actionSection}>
               <TouchableOpacity
-                style={styles.actionButtonGreen}
-                onPress={() =>
-                  Alert.alert('Mark as Found', 'Mark this post as already found?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Yes, Mark Found', onPress: () => updatePostStatus(id, 'FOUND', post.isSample) },
-                  ])
-                }
+                style={styles.actionButtonBlue}
+                onPress={() => router.push(`/post/edit/${id}`)}
               >
-                <Text style={styles.actionButtonText}>Mark as Found 🎉</Text>
+                <Text style={styles.actionButtonText}>Edit Post ✏️</Text>
               </TouchableOpacity>
-            )}
-            {showRentedOut && post.status !== 'RENTED_OUT' && (
+              {showFound && post.status !== 'FOUND' && (
+                <TouchableOpacity
+                  style={styles.actionButtonGreen}
+                  onPress={() =>
+                    Alert.alert('Mark as Found', 'Mark this post as already found?', [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Yes, Mark Found', onPress: () => updatePostStatus(id, 'FOUND', post.isSample) },
+                    ])
+                  }
+                >
+                  <Text style={styles.actionButtonText}>Mark as Found 🎉</Text>
+                </TouchableOpacity>
+              )}
+              {showRentedOut && post.status !== 'RENTED_OUT' && (
+                <TouchableOpacity
+                  style={styles.actionButtonGreen}
+                  onPress={() =>
+                    Alert.alert('Mark as Rented Out', 'Mark this post as already rented out?', [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Yes, Mark Rented Out', onPress: () => updatePostStatus(id, 'RENTED_OUT', post.isSample) },
+                    ])
+                  }
+                >
+                  <Text style={styles.actionButtonText}>Mark as Rented Out 🏠</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
-                style={styles.actionButtonGreen}
+                style={styles.actionButtonRed}
                 onPress={() =>
-                  Alert.alert('Mark as Rented Out', 'Mark this post as already rented out?', [
+                  Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
                     { text: 'Cancel', style: 'cancel' },
-                    { text: 'Yes, Mark Rented Out', onPress: () => updatePostStatus(id, 'RENTED_OUT', post.isSample) },
-                  ])
-                }
-              >
-                <Text style={styles.actionButtonText}>Mark as Rented Out 🏠</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={styles.actionButtonRed}
-              onPress={() =>
-                Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                      await deletePost(id, post.isSample);
-                      router.replace('/(tabs)');
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: async () => {
+                        await deletePost(id, post.isSample);
+                        router.replace('/(tabs)');
+                      },
                     },
-                  },
-                ])
-              }
-            >
-              <Text style={styles.actionButtonRedText}>Delete Post 🗑️</Text>
-            </TouchableOpacity>
-          </View>
+                  ])
+                }
+              >
+                <Text style={styles.actionButtonRedText}>Delete Post 🗑️</Text>
+              </TouchableOpacity>
+            </View>
           );
         })()}
 
-        {/* Bottom padding */}
         <View style={styles.bottomPadding} />
       </ScrollView>
     </View>
@@ -315,6 +366,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
     marginVertical: 20,
   },
+  imagesSection: {
+    marginBottom: 16,
+  },
+  imagesScroll: {
+    gap: 10,
+    paddingRight: 4,
+  },
+  postImage: {
+    width: 260,
+    height: 180,
+    borderRadius: 12,
+    backgroundColor: '#E5E7EB',
+  },
   detailsSection: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -360,6 +424,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
+  description: {
+    fontSize: 16,
+    color: '#374151',
+    lineHeight: 24,
+  },
   contactSection: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -404,10 +473,14 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontWeight: '600',
   },
-  description: {
-    fontSize: 16,
-    color: '#374151',
-    lineHeight: 24,
+  copyButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  copyButtonText: {
+    fontSize: 13,
+    color: '#3B82F6',
+    fontWeight: '600',
   },
   errorContainer: {
     flex: 1,
@@ -440,6 +513,12 @@ const styles = StyleSheet.create({
     marginTop: 16,
     gap: 10,
   },
+  actionButtonBlue: {
+    backgroundColor: '#3B82F6',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
   actionButtonGreen: {
     backgroundColor: '#10B981',
     paddingVertical: 14,
@@ -467,5 +546,3 @@ const styles = StyleSheet.create({
     height: 40,
   },
 });
-
-
