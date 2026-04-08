@@ -18,6 +18,8 @@ import { storage } from '@/lib/firebase';
 import { usePostsStore } from '@/hooks/usePostsStore';
 import { Post, PostType, PostIntent } from '@/types/post';
 
+const MAX_IMAGES = 8;
+
 export default function EditPostScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getPostById, updatePost } = usePostsStore();
@@ -118,19 +120,19 @@ export default function EditPostScreen() {
 
   const pickImages = async () => {
     const totalImages = existingImageUrls.length + newImageUris.length;
-    if (totalImages >= 3) {
-      Alert.alert('Limit reached', 'You can upload up to 3 photos per post.');
+    if (totalImages >= MAX_IMAGES) {
+      Alert.alert('Limit reached', `You can upload up to ${MAX_IMAGES} photos per post.`);
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsMultipleSelection: true,
-      selectionLimit: 3 - totalImages,
+      selectionLimit: MAX_IMAGES - totalImages,
       quality: 0.8,
     });
     if (!result.canceled) {
       const uris = result.assets.map((a) => a.uri);
-      setNewImageUris((prev) => [...prev, ...uris].slice(0, 3 - existingImageUrls.length));
+      setNewImageUris((prev) => [...prev, ...uris].slice(0, MAX_IMAGES - existingImageUrls.length));
     }
   };
 
@@ -359,14 +361,14 @@ export default function EditPostScreen() {
                 </TouchableOpacity>
               </View>
             ))}
-            {existingImageUrls.length + newImageUris.length < 3 && (
+            {existingImageUrls.length + newImageUris.length < MAX_IMAGES && (
               <TouchableOpacity style={styles.addImageButton} onPress={pickImages}>
                 <Text style={styles.addImageIcon}>+</Text>
                 <Text style={styles.addImageText}>Add Photo</Text>
               </TouchableOpacity>
             )}
           </View>
-          <Text style={styles.imageHint}>{existingImageUrls.length + newImageUris.length}/3 photos</Text>
+          <Text style={styles.imageHint}>{existingImageUrls.length + newImageUris.length}/{MAX_IMAGES} photos</Text>
         </View>
 
         {/* Save Button */}

@@ -19,6 +19,8 @@ import { usePostsStore } from '@/hooks/usePostsStore';
 import { useAuth } from '@/hooks/useAuth';
 import { Post, PostType, PostIntent } from '@/types/post';
 
+const MAX_IMAGES = 8;
+
 export default function CreatePostScreen() {
   const router = useRouter();
   const { addPost } = usePostsStore();
@@ -93,19 +95,19 @@ export default function CreatePostScreen() {
   };
 
   const pickImages = async () => {
-    if (imageUris.length >= 3) {
-      Alert.alert('Limit reached', 'You can upload up to 3 photos per post.');
+    if (imageUris.length >= MAX_IMAGES) {
+      Alert.alert('Limit reached', `You can upload up to ${MAX_IMAGES} photos per post.`);
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsMultipleSelection: true,
-      selectionLimit: 3 - imageUris.length,
+      selectionLimit: MAX_IMAGES - imageUris.length,
       quality: 0.8,
     });
     if (!result.canceled) {
       const uris = result.assets.map((a) => a.uri);
-      setImageUris((prev) => [...prev, ...uris].slice(0, 3));
+      setImageUris((prev) => [...prev, ...uris].slice(0, MAX_IMAGES));
     }
   };
 
@@ -524,14 +526,14 @@ export default function CreatePostScreen() {
                 </TouchableOpacity>
               </View>
             ))}
-            {imageUris.length < 3 && (
+            {imageUris.length < MAX_IMAGES && (
               <TouchableOpacity style={styles.addImageButton} onPress={pickImages}>
                 <Text style={styles.addImageIcon}>+</Text>
                 <Text style={styles.addImageText}>Add Photo</Text>
               </TouchableOpacity>
             )}
           </View>
-          <Text style={styles.imageHint}>{imageUris.length}/3 photos</Text>
+          <Text style={styles.imageHint}>{imageUris.length}/{MAX_IMAGES} photos</Text>
         </View>
 
         {/* Submit Button */}
@@ -723,4 +725,3 @@ const styles = StyleSheet.create({
     height: 40,
   },
 });
-

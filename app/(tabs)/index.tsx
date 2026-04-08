@@ -118,52 +118,19 @@ export default function FeedScreen() {
       onPress={() => router.push(`/post/${item.id}`)}
       activeOpacity={0.7}
     >
-      {item.imageUrls && item.imageUrls.length > 0 && (
-        <View style={styles.thumbnailContainer}>
-          <Image
-            source={{ uri: item.imageUrls[0] }}
-            style={styles.postThumbnail}
-            resizeMode="cover"
-          />
-          <View style={styles.imageOverlayTop}>
-            <View style={styles.badges}>
-              {item.types.map((t) => (
-                <View key={t} style={[styles.badge, { backgroundColor: getTypeBadgeColor(t) }]}>
-                  <Text style={styles.badgeText}>{t}</Text>
-                </View>
-              ))}
-              {item.intent && (
-                <View style={[styles.badge, { backgroundColor: getIntentBadgeColor(item.intent) }]}>
-                  <Text style={styles.badgeText}>{item.intent}</Text>
-                </View>
-              )}
-            </View>
-            {item.imageUrls.length > 1 && (
-              <View style={styles.photoCountBadge}>
-                <Text style={styles.photoCountText}>+{item.imageUrls.length - 1}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      )}
-
       <View style={styles.postHeader}>
-        {!item.imageUrls?.length ? (
-          <View style={styles.badges}>
-            {item.types.map((t) => (
-              <View key={t} style={[styles.badge, { backgroundColor: getTypeBadgeColor(t) }]}>
-                <Text style={styles.badgeText}>{t}</Text>
-              </View>
-            ))}
-            {item.intent && (
-              <View style={[styles.badge, { backgroundColor: getIntentBadgeColor(item.intent) }]}>
-                <Text style={styles.badgeText}>{item.intent}</Text>
-              </View>
-            )}
-          </View>
-        ) : (
-          <View />
-        )}
+        <View style={styles.badges}>
+          {item.types.map((t) => (
+            <View key={t} style={[styles.badge, { backgroundColor: getTypeBadgeColor(t) }]}>
+              <Text style={styles.badgeText}>{t}</Text>
+            </View>
+          ))}
+          {item.intent && (
+            <View style={[styles.badge, { backgroundColor: getIntentBadgeColor(item.intent) }]}>
+              <Text style={styles.badgeText}>{item.intent}</Text>
+            </View>
+          )}
+        </View>
         <View style={styles.cardTopRight}>
           {item.status === 'FOUND' && (
             <View style={styles.statusChip}>
@@ -178,6 +145,21 @@ export default function FeedScreen() {
           <Text style={styles.timeAgo}>{getTimeAgo(item.createdAt)}</Text>
         </View>
       </View>
+
+      {item.imageUrls && item.imageUrls.length > 0 && (
+        <View style={styles.thumbnailContainer}>
+          <Image
+            source={{ uri: item.imageUrls[0] }}
+            style={styles.postThumbnail}
+            resizeMode="cover"
+          />
+          {item.imageUrls.length > 1 && (
+            <View style={styles.photoCountBadge}>
+              <Text style={styles.photoCountText}>+{item.imageUrls.length - 1}</Text>
+            </View>
+          )}
+        </View>
+      )}
 
       <Text style={styles.postTitle}>{item.title}</Text>
       <Text style={styles.postBody} numberOfLines={2}>
@@ -423,8 +405,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 6,
-    minHeight: 22,
+    marginBottom: 10,
+    minHeight: 24,
   },
   cardTopRight: {
     alignItems: 'flex-end',
@@ -498,10 +480,8 @@ const styles = StyleSheet.create({
   thumbnailContainer: {
     position: 'relative',
     marginBottom: 10,
-    marginHorizontal: -12,
-    marginTop: -12,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    width: '100%',
+    borderRadius: 14,
     overflow: 'hidden',
     backgroundColor: '#E5E7EB',
   },
@@ -509,17 +489,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
   },
-  imageOverlayTop: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    right: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
   photoCountBadge: {
+    position: 'absolute',
+    right: 10,
+    bottom: 10,
     backgroundColor: 'rgba(17, 24, 39, 0.72)',
     borderRadius: 999,
     paddingHorizontal: 8,
