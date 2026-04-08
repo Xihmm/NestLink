@@ -8,6 +8,7 @@ import {
   TextInput,
   ScrollView,
   Image,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePostsStore } from '@/hooks/usePostsStore';
@@ -15,17 +16,23 @@ import { Post, PostType, PostIntent } from '@/types/post';
 
 type FilterType = 'ALL' | PostType;
 type FilterIntent = 'ALL' | 'OFFER' | 'SEEK';
+type FeedMode = 'ALL' | 'SAVED';
 
 export default function FeedScreen() {
   const router = useRouter();
-  const { posts } = usePostsStore();
+  const { posts, savedPostIds, isPostSaved, toggleSavedPost } = usePostsStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('ALL');
   const [filterIntent, setFilterIntent] = useState<FilterIntent>('ALL');
+  const [feedMode, setFeedMode] = useState<FeedMode>('ALL');
 
   // Filter and search posts
   const filteredPosts = useMemo(() => {
     return posts.filter((post) => {
+      if (feedMode === 'SAVED' && !savedPostIds.includes(post.id)) {
+        return false;
+      }
+
       // Type filter
       if (filterType !== 'ALL' && !post.types.includes(filterType)) {
         return false;
@@ -50,7 +57,7 @@ export default function FeedScreen() {
 
       return true;
     });
-  }, [posts, searchQuery, filterType, filterIntent]);
+  }, [posts, searchQuery, filterType, filterIntent, feedMode, savedPostIds]);
 
   const getTimeAgo = (timestamp: number) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -94,6 +101,16 @@ export default function FeedScreen() {
 
   const isClosedStatus = (item: Post) =>
     item.status === 'FOUND' || item.status === 'RENTED_OUT';
+
+  const handleToggleSaved = async (postId: string) => {
+    try {
+      console.info('Toggling saved post from feed.', { postId });
+      await toggleSavedPost(postId);
+    } catch (error) {
+      console.error('Failed to toggle saved post from feed:', error);
+      Alert.alert('Save failed', 'We could not update your saved posts. Please try again.');
+    }
+  };
 
   const renderPostItem = ({ item }: { item: Post }) => (
     <TouchableOpacity
@@ -180,12 +197,26 @@ export default function FeedScreen() {
       </View>
 
       <View style={styles.authorRow}>
-        <Text style={styles.authorText}>by {item.authorName || 'Anonymous'}</Text>
-        {item.isSample && (
-          <View style={styles.sampleBadge}>
-            <Text style={styles.sampleBadgeText}>Sample</Text>
-          </View>
-        )}
+        <View style={styles.authorMeta}>
+          <Text style={styles.authorText}>by {item.authorName || 'Anonymous'}</Text>
+          {item.isSample && (
+            <View style={styles.sampleBadge}>
+              <Text style={styles.sampleBadgeText}>Sample</Text>
+            </View>
+          )}
+        </View>
+        <TouchableOpacity
+          style={[styles.saveButton, isPostSaved(item.id) && styles.saveButtonActive]}
+          onPress={(event) => {
+            event.stopPropagation();
+            handleToggleSaved(item.id);
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.saveButtonText, isPostSaved(item.id) && styles.saveButtonTextActive]}>
+            {isPostSaved(item.id) ? '🔖 Saved' : '🔖 Save'}
+          </Text>
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
@@ -239,6 +270,30 @@ export default function FeedScreen() {
           style={styles.filterRow}
           contentContainerStyle={styles.filterRowContent}
         >
+          <TouchableOpacity
+            style={[styles.filterButton, feedMode === 'ALL' && styles.filterButtonActive]}
+            onPress={() => setFeedMode('ALL')}
+          >
+            <Text style={[styles.filterButtonText, feedMode === 'ALL' && styles.filterButtonTextActive]}>
+              All Posts
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterButton, feedMode === 'SAVED' && styles.filterButtonActive]}
+            onPress={() => setFeedMode('SAVED')}
+          >
+            <Text style={[styles.filterButtonText, feedMode === 'SAVED' && styles.filterButtonTextActive]}>
+              Saved
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterRow}
+          contentContainerStyle={styles.filterRowContent}
+        >
           <TypeFilterButton type="ALL" label="All" />
           <TypeFilterButton type="ROOMMATE" label="Roommate" />
           <TypeFilterButton type="SUBLET" label="Sublet" />
@@ -268,8 +323,10 @@ export default function FeedScreen() {
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No posts found</Text>
-            <Text style={styles.emptySubtext}>Try adjusting your filters or search query</Text>
+            <Text style={styles.emptyText}>{feedMode === 'SAVED' ? 'No saved posts yet' : 'No posts found'}</Text>
+            <Text style={styles.emptySubtext}>
+              {feedMode === 'SAVED' ? 'Save posts from the feed or post details to find them here' : 'Try adjusting your filters or search query'}
+            </Text>
           </View>
         }
       />
@@ -311,7 +368,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   filterSection: {
-    height: 100,
+    height: 144,
   },
   filterRow: {
     height: 44,
@@ -372,6 +429,27 @@ const styles = StyleSheet.create({
   cardTopRight: {
     alignItems: 'flex-end',
     gap: 4,
+    marginLeft: 12,
+  },
+  saveButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  saveButtonActive: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#60A5FA',
+  },
+  saveButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  saveButtonTextActive: {
+    color: '#1D4ED8',
   },
   statusChip: {
     backgroundColor: '#D1FAE5',
@@ -465,7 +543,14 @@ const styles = StyleSheet.create({
   authorRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  authorMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
+    flex: 1,
   },
   authorText: {
     fontSize: 12,

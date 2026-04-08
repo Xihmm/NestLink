@@ -20,7 +20,7 @@ import { PostType, PostIntent } from '@/types/post';
 export default function PostDetailScreen() {
   const screenWidth = Dimensions.get('window').width;
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getPostById, updatePostStatus, deletePost } = usePostsStore();
+  const { getPostById, updatePostStatus, deletePost, isPostSaved, toggleSavedPost } = usePostsStore();
   const { user: currentUser } = useAuth();
   const router = useRouter();
   const [showContact, setShowContact] = useState(false);
@@ -87,6 +87,19 @@ export default function PostDetailScreen() {
     setPreviewVisible(true);
   };
 
+  const handleToggleSaved = async () => {
+    try {
+      console.info('Toggling saved post from details.', {
+        uid: currentUser?.uid ?? null,
+        postId: post.id,
+      });
+      await toggleSavedPost(post.id);
+    } catch (error) {
+      console.error('Failed to toggle saved post from details:', error);
+      Alert.alert('Save failed', 'We could not update your saved posts. Please try again.');
+    }
+  };
+
   const isOwner = !post.isSample && currentUser?.uid != null && currentUser.uid === post.authorId;
 
   return (
@@ -127,6 +140,16 @@ export default function PostDetailScreen() {
 
         {/* Author */}
         <Text style={styles.author}>Posted by {post.authorName || 'Anonymous'}</Text>
+
+        <TouchableOpacity
+          style={[styles.savePostButton, isPostSaved(post.id) && styles.savePostButtonActive]}
+          onPress={handleToggleSaved}
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.savePostButtonText, isPostSaved(post.id) && styles.savePostButtonTextActive]}>
+            {isPostSaved(post.id) ? '🔖 Saved' : '🔖 Save Post'}
+          </Text>
+        </TouchableOpacity>
 
         {/* Divider */}
         <View style={styles.divider} />
@@ -217,7 +240,7 @@ export default function PostDetailScreen() {
                       onPress={() => copyToClipboard(post.wechatId!, 'wechat')}
                     >
                       <Text style={styles.copyButtonText}>
-                        {copiedField === 'wechat' ? 'Copied!' : '📋'}
+                        {copiedField === 'wechat' ? 'Copied!' : '📋 Copy'}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -232,7 +255,7 @@ export default function PostDetailScreen() {
                       onPress={() => copyToClipboard(post.phone!, 'phone')}
                     >
                       <Text style={styles.copyButtonText}>
-                        {copiedField === 'phone' ? 'Copied!' : '📋'}
+                        {copiedField === 'phone' ? 'Copied!' : '📋 Copy'}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -247,7 +270,7 @@ export default function PostDetailScreen() {
                       onPress={() => copyToClipboard(post.email!, 'email')}
                     >
                       <Text style={styles.copyButtonText}>
-                        {copiedField === 'email' ? 'Copied!' : '📋'}
+                        {copiedField === 'email' ? 'Copied!' : '📋 Copy'}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -404,7 +427,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     fontStyle: 'italic',
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  savePostButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  savePostButtonActive: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#60A5FA',
+  },
+  savePostButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  savePostButtonTextActive: {
+    color: '#1D4ED8',
   },
   divider: {
     height: 1,
@@ -552,13 +596,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   copyButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 999,
   },
   copyButtonText: {
     fontSize: 13,
+    fontWeight: '700',
     color: '#3B82F6',
-    fontWeight: '600',
   },
   errorContainer: {
     flex: 1,

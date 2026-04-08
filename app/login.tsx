@@ -98,9 +98,9 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   logoImage: {
-    width: 210,
-    height: 210,
-    marginTop: 28,
+    width: 286,
+    height: 286,
+    marginTop: 24,
   },
   title: {
     fontSize: 48,
