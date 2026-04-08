@@ -199,13 +199,28 @@ export const PostsProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const addPost = async (post: Post) => {
+    if (!user?.uid) {
+      console.error('Blocked post creation because auth user is missing.');
+      throw new Error('Authentication is still loading. Please try again.');
+    }
+
     const { id, isSample, ...firestoreData } = post;
-    const dataWithAuthor = { ...firestoreData, authorId: user?.uid ?? null };
+    const dataWithAuthor = { ...firestoreData, authorId: user.uid };
     const cleanData = Object.fromEntries(
       Object.entries(dataWithAuthor).filter(([_, v]) => v !== undefined && v !== null)
     );
-    const docRef = await addDoc(collection(db, 'posts'), cleanData);
-    const savedPost: Post = { ...post, id: docRef.id, authorId: user?.uid };
+
+    console.info('Creating Firestore post document.', { authorId: user.uid });
+
+    let docRef;
+    try {
+      docRef = await addDoc(collection(db, 'posts'), cleanData);
+    } catch (error) {
+      console.error('Firestore post creation failed:', error);
+      throw error;
+    }
+
+    const savedPost: Post = { ...post, id: docRef.id, authorId: user.uid };
     setPosts((prev) => [savedPost, ...prev]);
   };
 

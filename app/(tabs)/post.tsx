@@ -16,11 +16,13 @@ import * as ImagePicker from 'expo-image-picker';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import { usePostsStore } from '@/hooks/usePostsStore';
+import { useAuth } from '@/hooks/useAuth';
 import { Post, PostType, PostIntent } from '@/types/post';
 
 export default function CreatePostScreen() {
   const router = useRouter();
   const { addPost } = usePostsStore();
+  const { user, loading: authLoading } = useAuth();
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -108,10 +110,31 @@ export default function CreatePostScreen() {
   };
 
   const uploadImage = async (uri: string, tempId: string, index: number): Promise<string> => {
-    const response = await fetch(uri);
-    const blob = await response.blob();
     const imageRef = storageRef(storage, `posts/${tempId}/${Date.now()}_${index}.jpg`);
-    await uploadBytes(imageRef, blob);
+
+    console.info('Starting image upload.', { uri, tempId, index, storagePath: imageRef.fullPath });
+
+    let blob: Blob;
+    try {
+      const response = await fetch(uri);
+      blob = await response.blob();
+    } catch (error) {
+      console.error('Image upload preparation failed:', error);
+      throw new Error('Failed to read the selected image before upload.');
+    }
+
+    try {
+      await uploadBytes(imageRef, blob);
+    } catch (error) {
+      console.error('Firebase Storage write failed:', {
+        error,
+        storagePath: imageRef.fullPath,
+        tempId,
+        index,
+      });
+      throw new Error('Failed to upload the image to Firebase Storage.');
+    }
+
     return await getDownloadURL(imageRef);
   };
 
@@ -149,6 +172,16 @@ export default function CreatePostScreen() {
   const handleSubmit = async () => {
     if (submitting) return;
     if (!validateForm()) return;
+    if (authLoading) {
+      console.warn('Blocked post submit while auth is still loading.');
+      Alert.alert('Please wait', 'Your account is still loading. Try again in a moment.');
+      return;
+    }
+    if (!user?.uid) {
+      console.error('Blocked post submit because auth user.uid is missing.', { user });
+      Alert.alert('Unable to post', 'We could not verify your account yet. Please try again.');
+      return;
+    }
 
     setSubmitting(true);
 
@@ -156,9 +189,22 @@ export default function CreatePostScreen() {
       const tempId = Date.now().toString();
       let imageUrls: string[] = [];
       if (imageUris.length > 0) {
-        imageUrls = await Promise.all(
-          imageUris.map((uri, i) => uploadImage(uri, tempId, i))
-        );
+        console.info('Uploading images for new post.', {
+          uid: user.uid,
+          imageCount: imageUris.length,
+          tempId,
+        });
+
+        try {
+          imageUrls = await Promise.all(
+            imageUris.map((uri, i) => uploadImage(uri, tempId, i))
+          );
+        } catch (error) {
+          console.error('Image upload failed:', error);
+          Alert.alert('Upload failed', error instanceof Error ? error.message : 'We could not upload your images.');
+          setSubmitting(false);
+          return;
+        }
       }
 
       const newPost: Post = {
@@ -179,7 +225,23 @@ export default function CreatePostScreen() {
         imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
       };
 
-      await addPost(newPost);
+      console.info('Submitting Firestore post creation.', {
+        uid: user.uid,
+        tempId,
+        hasImages: imageUrls.length > 0,
+      });
+
+      try {
+        await addPost(newPost);
+      } catch (error) {
+        console.error('Create post failed during Firestore write:', error);
+        Alert.alert(
+          'Post failed',
+          error instanceof Error ? error.message : 'We could not create your post. Please try again.'
+        );
+        setSubmitting(false);
+        return;
+      }
 
       Alert.alert('Success! 🎉', 'Your post has been created!', [
         {
@@ -206,6 +268,8 @@ export default function CreatePostScreen() {
         },
       ]);
     } catch (error) {
+      console.error('Unexpected create post failure:', error);
+      Alert.alert('Post failed', 'Something went wrong while creating your post.');
       setSubmitting(false);
     }
   };
@@ -659,5 +723,4 @@ const styles = StyleSheet.create({
     height: 40,
   },
 });
-
 

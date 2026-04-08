@@ -7,6 +7,7 @@ import {
   StyleSheet,
   TextInput,
   ScrollView,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePostsStore } from '@/hooks/usePostsStore';
@@ -100,19 +101,52 @@ export default function FeedScreen() {
       onPress={() => router.push(`/post/${item.id}`)}
       activeOpacity={0.7}
     >
-      <View style={styles.postHeader}>
-        <View style={styles.badges}>
-          {item.types.map((t) => (
-            <View key={t} style={[styles.badge, { backgroundColor: getTypeBadgeColor(t) }]}>
-              <Text style={styles.badgeText}>{t}</Text>
+      {item.imageUrls && item.imageUrls.length > 0 && (
+        <View style={styles.thumbnailContainer}>
+          <Image
+            source={{ uri: item.imageUrls[0] }}
+            style={styles.postThumbnail}
+            resizeMode="cover"
+          />
+          <View style={styles.imageOverlayTop}>
+            <View style={styles.badges}>
+              {item.types.map((t) => (
+                <View key={t} style={[styles.badge, { backgroundColor: getTypeBadgeColor(t) }]}>
+                  <Text style={styles.badgeText}>{t}</Text>
+                </View>
+              ))}
+              {item.intent && (
+                <View style={[styles.badge, { backgroundColor: getIntentBadgeColor(item.intent) }]}>
+                  <Text style={styles.badgeText}>{item.intent}</Text>
+                </View>
+              )}
             </View>
-          ))}
-          {item.intent && (
-            <View style={[styles.badge, { backgroundColor: getIntentBadgeColor(item.intent) }]}>
-              <Text style={styles.badgeText}>{item.intent}</Text>
-            </View>
-          )}
+            {item.imageUrls.length > 1 && (
+              <View style={styles.photoCountBadge}>
+                <Text style={styles.photoCountText}>+{item.imageUrls.length - 1}</Text>
+              </View>
+            )}
+          </View>
         </View>
+      )}
+
+      <View style={styles.postHeader}>
+        {!item.imageUrls?.length ? (
+          <View style={styles.badges}>
+            {item.types.map((t) => (
+              <View key={t} style={[styles.badge, { backgroundColor: getTypeBadgeColor(t) }]}>
+                <Text style={styles.badgeText}>{t}</Text>
+              </View>
+            ))}
+            {item.intent && (
+              <View style={[styles.badge, { backgroundColor: getIntentBadgeColor(item.intent) }]}>
+                <Text style={styles.badgeText}>{item.intent}</Text>
+              </View>
+            )}
+          </View>
+        ) : (
+          <View />
+        )}
         <View style={styles.cardTopRight}>
           {item.status === 'FOUND' && (
             <View style={styles.statusChip}>
@@ -310,13 +344,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   listContent: {
-    padding: 16,
+    padding: 14,
   },
   postCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     shadowColor: '#000',
@@ -332,7 +366,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginBottom: 6,
+    minHeight: 22,
   },
   cardTopRight: {
     alignItems: 'flex-end',
@@ -352,15 +387,17 @@ const styles = StyleSheet.create({
   badges: {
     flexDirection: 'row',
     gap: 6,
+    flexWrap: 'wrap',
+    flex: 1,
   },
   badge: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 3,
+    borderRadius: 999,
   },
   badgeText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
@@ -369,25 +406,60 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   postTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   postBody: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
-    lineHeight: 20,
-    marginBottom: 12,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  thumbnailContainer: {
+    position: 'relative',
+    marginBottom: 10,
+    marginHorizontal: -12,
+    marginTop: -12,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#E5E7EB',
+  },
+  postThumbnail: {
+    width: '100%',
+    height: 200,
+  },
+  imageOverlayTop: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    right: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  photoCountBadge: {
+    backgroundColor: 'rgba(17, 24, 39, 0.72)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  photoCountText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   postMeta: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 8,
+    gap: 10,
+    marginBottom: 6,
   },
   metaText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#4B5563',
   },
   authorRow: {

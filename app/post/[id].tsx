@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   Alert,
   Image,
+  Modal,
+  Pressable,
+  Dimensions,
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -15,12 +18,15 @@ import { useAuth } from '@/hooks/useAuth';
 import { PostType, PostIntent } from '@/types/post';
 
 export default function PostDetailScreen() {
+  const screenWidth = Dimensions.get('window').width;
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getPostById, updatePostStatus, deletePost } = usePostsStore();
   const { user: currentUser } = useAuth();
   const router = useRouter();
   const [showContact, setShowContact] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState(0);
 
   const post = getPostById(id);
 
@@ -76,6 +82,11 @@ export default function PostDetailScreen() {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
+  const openPreview = (index: number) => {
+    setPreviewIndex(index);
+    setPreviewVisible(true);
+  };
+
   const isOwner = !post.isSample && currentUser?.uid != null && currentUser.uid === post.authorId;
 
   return (
@@ -125,7 +136,9 @@ export default function PostDetailScreen() {
           <View style={styles.imagesSection}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imagesScroll}>
               {post.imageUrls.map((url, i) => (
-                <Image key={i} source={{ uri: url }} style={styles.postImage} resizeMode="cover" />
+                <TouchableOpacity key={i} activeOpacity={0.9} onPress={() => openPreview(i)}>
+                  <Image source={{ uri: url }} style={styles.postImage} resizeMode="cover" />
+                </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
@@ -308,6 +321,38 @@ export default function PostDetailScreen() {
 
         <View style={styles.bottomPadding} />
       </ScrollView>
+
+      {post.imageUrls && post.imageUrls.length > 0 && (
+        <Modal
+          visible={previewVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setPreviewVisible(false)}
+        >
+          <View style={styles.previewOverlay}>
+            <Pressable style={styles.previewBackdrop} onPress={() => setPreviewVisible(false)} />
+            <TouchableOpacity
+              style={styles.previewCloseButton}
+              onPress={() => setPreviewVisible(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.previewCloseText}>Close</Text>
+            </TouchableOpacity>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              contentOffset={{ x: previewIndex * screenWidth, y: 0 }}
+            >
+              {post.imageUrls.map((url, i) => (
+                <View key={i} style={[styles.previewSlide, { width: screenWidth }]}>
+                  <Image source={{ uri: url }} style={styles.previewImage} resizeMode="contain" />
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -378,6 +423,39 @@ const styles = StyleSheet.create({
     height: 180,
     borderRadius: 12,
     backgroundColor: '#E5E7EB',
+  },
+  previewOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.94)',
+    justifyContent: 'center',
+  },
+  previewBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  previewCloseButton: {
+    position: 'absolute',
+    top: 56,
+    right: 20,
+    zIndex: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  previewCloseText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  previewSlide: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  previewImage: {
+    width: '100%',
+    height: '78%',
   },
   detailsSection: {
     backgroundColor: '#FFFFFF',

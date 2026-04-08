@@ -5,27 +5,62 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
+  Alert,
+  Image,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@/hooks/useAuth';
+import { initAnonymousUser } from '@/lib/authService';
+import pigImage from '@/assets/images/pig.png';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { user, loading } = useAuth();
 
   const handleContinue = async () => {
-    await AsyncStorage.setItem('hasOnboarded', 'true');
-    router.replace('/(tabs)');
+    if (loading) {
+      Alert.alert('Please wait', 'Your account is still loading. Try again in a moment.');
+      return;
+    }
+
+    try {
+      if (!user) {
+        await initAnonymousUser();
+      }
+      router.replace('/(tabs)');
+    } catch (error) {
+      console.error('Failed to continue from login screen:', error);
+      Alert.alert('Unable to continue', 'We could not start your session. Please try again.');
+    }
+  };
+
+  const handleContactPress = async () => {
+    const url = 'mailto:zgong12@u.rochester.edu';
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        Alert.alert('Unavailable', 'No email app is available on this device.');
+        return;
+      }
+
+      await Linking.openURL(url);
+    } catch (error) {
+      console.error('Failed to open contact email link:', error);
+      Alert.alert('Unable to open email', 'Please try again in a moment.');
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.hero}>
-          <Text style={styles.logo}>🏠</Text>
           <Text style={styles.title}>NestLink</Text>
           <Text style={styles.tagline}>
-            UR's home for sublets, roommates & short-term — all in one place.
+            Sublets, short-term, roommates — finally all in one place, built for UR.
           </Text>
+          <Image source={pigImage} style={styles.logoImage} resizeMode="contain" />
         </View>
 
         <View style={styles.footer}>
@@ -36,6 +71,9 @@ export default function LoginScreen() {
             By continuing, you agree to our Terms of Service.{'\n'}
             Your posts are visible to all NestLink users.
           </Text>
+          <TouchableOpacity onPress={handleContactPress} hitSlop={8}>
+            <Text style={styles.contactLink}>Contact Us</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
@@ -57,11 +95,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
+    gap: 0,
   },
-  logo: {
-    fontSize: 72,
-    marginBottom: 8,
+  logoImage: {
+    width: 210,
+    height: 210,
+    marginTop: 28,
   },
   title: {
     fontSize: 48,
@@ -75,6 +114,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 26,
     maxWidth: 300,
+    marginTop: 16,
   },
   footer: {
     gap: 16,
@@ -102,5 +142,12 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  contactLink: {
+    fontSize: 14,
+    color: '#2563EB',
+    textAlign: 'center',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });

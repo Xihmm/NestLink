@@ -26,7 +26,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setLoading(false);
       } else {
         // No user — sign in anonymously automatically
-        signInAnonymously(auth).catch(console.error);
+        setUser(null);
+        signInAnonymously(auth).catch((error) => {
+          console.error('Anonymous sign-in failed:', error);
+          setLoading(false);
+        });
       }
     });
     return unsub;
