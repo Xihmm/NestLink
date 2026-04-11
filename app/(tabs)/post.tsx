@@ -24,7 +24,7 @@ const MAX_IMAGES = 8;
 export default function CreatePostScreen() {
   const router = useRouter();
   const { addPost } = usePostsStore();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isAnonymous } = useAuth();
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -185,7 +185,7 @@ export default function CreatePostScreen() {
     return true;
   };
 
-  const handleSubmit = async () => {
+  const doSubmit = async () => {
     if (submitting) return;
     if (!validateForm()) return;
     if (authLoading) {
@@ -241,6 +241,7 @@ export default function CreatePostScreen() {
         email: email.trim() || undefined,
         imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
         negotiable: negotiable || undefined,
+        authorEmail: user.email || undefined,
       };
 
       console.info('Submitting Firestore post creation.', {
@@ -291,6 +292,21 @@ export default function CreatePostScreen() {
       console.error('Unexpected create post failure:', error);
       Alert.alert('Post failed', 'Something went wrong while creating your post.');
       setSubmitting(false);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (isAnonymous) {
+      Alert.alert(
+        'Sign up to post',
+        'Create an account to manage your posts across devices.',
+        [
+          { text: 'Sign Up', onPress: () => router.push('/auth') },
+          { text: 'Post Anonymously', style: 'cancel', onPress: () => doSubmit() },
+        ]
+      );
+    } else {
+      doSubmit();
     }
   };
 

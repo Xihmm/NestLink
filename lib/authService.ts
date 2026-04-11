@@ -14,6 +14,8 @@ import {
   signInAnonymously,
   signOut,
   linkWithCredential,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
   GoogleAuthProvider,
   EmailAuthProvider,
   User,
@@ -31,6 +33,31 @@ export const getCurrentUser = (): User | null => auth.currentUser;
 
 /** Signs the user out (they will be auto-signed-in anonymously again on next launch). */
 export const signOutUser = (): Promise<void> => signOut(auth);
+
+/** Returns true if the email is a .edu address. */
+export const isEduEmail = (email: string): boolean => email.trim().toLowerCase().endsWith('.edu');
+
+/**
+ * Registers with email+password.
+ * If the user is currently anonymous, upgrades the account (uid preserved).
+ * Otherwise creates a brand-new account.
+ */
+export const registerWithEmail = async (email: string, password: string): Promise<User> => {
+  const current = auth.currentUser;
+  if (current && current.isAnonymous) {
+    const credential = EmailAuthProvider.credential(email, password);
+    const result = await linkWithCredential(current, credential);
+    return result.user;
+  }
+  const result = await createUserWithEmailAndPassword(auth, email, password);
+  return result.user;
+};
+
+/** Signs in with email+password. */
+export const signInWithEmail = async (email: string, password: string): Promise<User> => {
+  const result = await signInWithEmailAndPassword(auth, email, password);
+  return result.user;
+};
 
 /**
  * Upgrades an anonymous account to email+password.

@@ -140,7 +140,12 @@ export default function PostDetailScreen() {
         <Text style={styles.title}>{post.title}</Text>
 
         {/* Author */}
-        <Text style={styles.author}>Posted by {post.authorName || 'Anonymous'}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+          <Text style={styles.author}>Posted by {post.authorName || 'Anonymous'}</Text>
+          {post.authorEmail?.toLowerCase().endsWith('.edu') && (
+            <Text style={{ fontSize: 11, color: '#3B82F6' }}>🎓 UR Verified</Text>
+          )}
+        </View>
 
         <TouchableOpacity
           onPress={handleToggleSaved}
@@ -459,7 +464,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     fontStyle: 'italic',
-    marginBottom: 12,
   },
   savePostButton: {
     alignSelf: 'flex-start',

@@ -20,6 +20,7 @@ export interface Post {
   phone?: string;
   email?: string;
   authorId?: string;
+  authorEmail?: string;
   isSample?: boolean;
   status?: PostStatus;
   imageUrls?: string[];

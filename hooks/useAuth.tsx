@@ -10,6 +10,9 @@ import { auth } from '@/lib/firebase';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  isAnonymous: boolean;
+  isEduVerified: boolean;
+  userEmail: string | null;
   signOut: () => Promise<void>;
 }
 
@@ -39,7 +42,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signOut = () => firebaseSignOut(auth);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signOut }}>
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      isAnonymous: user?.isAnonymous ?? true,
+      isEduVerified: user?.email?.toLowerCase().endsWith('.edu') ?? false,
+      userEmail: user?.email ?? null,
+      signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   );

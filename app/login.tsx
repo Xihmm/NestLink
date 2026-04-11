@@ -64,8 +64,11 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-            <Text style={styles.continueButtonText}>Continue</Text>
+          <TouchableOpacity style={styles.continueButton} onPress={() => router.push('/auth')}>
+            <Text style={styles.continueButtonText}>Sign up with Email</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleContinue}>
+            <Text style={styles.guestLink}>Browse as guest →</Text>
           </TouchableOpacity>
           <Text style={styles.disclaimer}>
             By continuing, you agree to our Terms of Service.{'\n'}
@@ -142,6 +145,12 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  guestLink: {
+    fontSize: 15,
+    color: '#6B7280',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   contactLink: {
     fontSize: 14,
