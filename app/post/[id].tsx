@@ -54,7 +54,8 @@ export default function PostDetailScreen() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    const [y, m, d] = dateString.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -142,12 +143,24 @@ export default function PostDetailScreen() {
         <Text style={styles.author}>Posted by {post.authorName || 'Anonymous'}</Text>
 
         <TouchableOpacity
-          style={[styles.savePostButton, isPostSaved(post.id) && styles.savePostButtonActive]}
           onPress={handleToggleSaved}
           activeOpacity={0.85}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
+            alignSelf: 'flex-start',
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: isPostSaved(post.id) ? '#FCA5A5' : '#E5E7EB',
+            backgroundColor: isPostSaved(post.id) ? '#FFF1F2' : 'white',
+          }}
         >
-          <Text style={[styles.savePostButtonText, isPostSaved(post.id) && styles.savePostButtonTextActive]}>
-            {isPostSaved(post.id) ? '🔖 Saved' : '🔖 Save Post'}
+          <Text style={{ fontSize: 14 }}>{isPostSaved(post.id) ? '❤️' : '🤍'}</Text>
+          <Text style={{ fontSize: 13, color: isPostSaved(post.id) ? '#EF4444' : '#6B7280', fontWeight: '500' }}>
+            {isPostSaved(post.id) ? 'Saved' : 'Save Post'}
           </Text>
         </TouchableOpacity>
 
@@ -168,7 +181,7 @@ export default function PostDetailScreen() {
         )}
 
         {/* Details Section */}
-        {(post.location || post.budget || post.startDate || post.endDate) && (
+        {(post.location || post.budgetMin || post.budgetMax || post.startDate || post.endDate) && (
           <View style={styles.detailsSection}>
             <Text style={styles.sectionTitle}>Details</Text>
             {post.location && (
@@ -180,12 +193,21 @@ export default function PostDetailScreen() {
                 </View>
               </View>
             )}
-            {post.budget && (
+            {(post.budgetMin || post.budgetMax) && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailIcon}>💰</Text>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Budget</Text>
-                  <Text style={styles.detailValue}>${post.budget}/month</Text>
+                  <Text style={styles.detailValue}>
+                    {post.budgetMin && post.budgetMax
+                      ? `$${post.budgetMin} - $${post.budgetMax}/month`
+                      : post.budgetMin
+                      ? `$${post.budgetMin}+/month`
+                      : `Up to $${post.budgetMax}/month`}
+                  </Text>
+                  {post.negotiable && (
+                    <Text style={{ color: '#3B82F6', fontSize: 13, marginTop: 4 }}>🔪 Price negotiable</Text>
+                  )}
                 </View>
               </View>
             )}
@@ -284,60 +306,70 @@ export default function PostDetailScreen() {
         {isOwner && (() => {
           const isHousing = post.types.includes('SUBLET') || post.types.includes('SHORT_TERM');
           const isRoommateOnly = post.types.length === 1 && post.types.includes('ROOMMATE');
-          const showRentedOut = isHousing && post.intent === 'OFFER';
-          const showFound = isRoommateOnly || (isHousing && post.intent === 'SEEK');
+          const isClosed = post.status === 'FOUND' || post.status === 'RENTED_OUT';
+          const showRentedOut = isHousing && post.intent === 'OFFER' && !isClosed;
+          const showFound = (isRoommateOnly || (isHousing && post.intent === 'SEEK')) && !isClosed;
           return (
             <View style={styles.actionSection}>
-              <TouchableOpacity
-                style={styles.actionButtonBlue}
-                onPress={() => router.push(`/post/edit/${id}`)}
-              >
-                <Text style={styles.actionButtonText}>Edit Post ✏️</Text>
-              </TouchableOpacity>
-              {showFound && post.status !== 'FOUND' && (
+              {!isClosed && (
+                <TouchableOpacity
+                  style={styles.actionButtonBlue}
+                  onPress={() => router.push(`/post/edit/${id}`)}
+                >
+                  <Text style={styles.actionButtonText}>Edit Post ✏️</Text>
+                </TouchableOpacity>
+              )}
+              {showFound && (
                 <TouchableOpacity
                   style={styles.actionButtonGreen}
                   onPress={() =>
-                    Alert.alert('Mark as Found', 'Mark this post as already found?', [
+                    Alert.alert('Mark as Closed?', 'Once marked, this post cannot be edited.', [
                       { text: 'Cancel', style: 'cancel' },
-                      { text: 'Yes, Mark Found', onPress: () => updatePostStatus(id, 'FOUND', post.isSample) },
+                      { text: 'Confirm', style: 'destructive', onPress: () => updatePostStatus(id, 'FOUND', post.isSample) },
                     ])
                   }
                 >
                   <Text style={styles.actionButtonText}>Mark as Found 🎉</Text>
                 </TouchableOpacity>
               )}
-              {showRentedOut && post.status !== 'RENTED_OUT' && (
+              {showRentedOut && (
                 <TouchableOpacity
                   style={styles.actionButtonGreen}
                   onPress={() =>
-                    Alert.alert('Mark as Rented Out', 'Mark this post as already rented out?', [
+                    Alert.alert('Mark as Closed?', 'Once marked, this post cannot be edited.', [
                       { text: 'Cancel', style: 'cancel' },
-                      { text: 'Yes, Mark Rented Out', onPress: () => updatePostStatus(id, 'RENTED_OUT', post.isSample) },
+                      { text: 'Confirm', style: 'destructive', onPress: () => updatePostStatus(id, 'RENTED_OUT', post.isSample) },
                     ])
                   }
                 >
                   <Text style={styles.actionButtonText}>Mark as Rented Out 🏠</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity
-                style={styles.actionButtonRed}
-                onPress={() =>
-                  Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Delete',
-                      style: 'destructive',
-                      onPress: async () => {
-                        await deletePost(id, post.isSample);
-                        router.replace('/(tabs)');
+              {!isClosed && (
+                <TouchableOpacity
+                  style={styles.actionButtonRed}
+                  onPress={() =>
+                    Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: async () => {
+                          await deletePost(id, post.isSample);
+                          router.replace('/(tabs)');
+                        },
                       },
-                    },
-                  ])
-                }
-              >
-                <Text style={styles.actionButtonRedText}>Delete Post 🗑️</Text>
-              </TouchableOpacity>
+                    ])
+                  }
+                >
+                  <Text style={styles.actionButtonRedText}>Delete Post 🗑️</Text>
+                </TouchableOpacity>
+              )}
+              {isClosed && (
+                <Text style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'center', marginTop: 8 }}>
+                  This post has been closed and cannot be edited.
+                </Text>
+              )}
             </View>
           );
         })()}

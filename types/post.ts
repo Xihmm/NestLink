@@ -10,6 +10,8 @@ export interface Post {
   intent: PostIntent;
   location?: string;
   budget?: number;
+  budgetMin?: number;
+  budgetMax?: number;
   startDate?: string; // ISO string
   endDate?: string; // ISO string
   createdAt: number; // timestamp
@@ -21,6 +23,7 @@ export interface Post {
   isSample?: boolean;
   status?: PostStatus;
   imageUrls?: string[];
+  negotiable?: boolean;
 }
 
 

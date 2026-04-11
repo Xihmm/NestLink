@@ -32,7 +32,8 @@ export default function CreatePostScreen() {
   const [typeWarning, setTypeWarning] = useState('');
   const [intent, setIntent] = useState<PostIntent>('OFFER');
   const [location, setLocation] = useState('');
-  const [budget, setBudget] = useState('');
+  const [budgetMin, setBudgetMin] = useState('');
+  const [budgetMax, setBudgetMax] = useState('');
   const [startMM, setStartMM] = useState('');
   const [startDD, setStartDD] = useState('');
   const [startYYYY, setStartYYYY] = useState('');
@@ -45,6 +46,7 @@ export default function CreatePostScreen() {
   const [wechatId, setWechatId] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [negotiable, setNegotiable] = useState(false);
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -164,6 +166,18 @@ export default function CreatePostScreen() {
       setEndDateError(ee);
       if (se || ee) return false;
     }
+    if (budgetMin && parseInt(budgetMin) <= 0) {
+      Alert.alert('Invalid Budget', 'Budget must be greater than 0');
+      return false;
+    }
+    if (budgetMax && parseInt(budgetMax) <= 0) {
+      Alert.alert('Invalid Budget', 'Budget must be greater than 0');
+      return false;
+    }
+    if (budgetMin && budgetMax && parseInt(budgetMin) > parseInt(budgetMax)) {
+      Alert.alert('Invalid Budget', 'Min budget cannot be greater than max');
+      return false;
+    }
     if (!wechatId.trim() && !phone.trim() && !email.trim()) {
       Alert.alert('Error', 'Please provide at least one contact method');
       return false;
@@ -216,7 +230,8 @@ export default function CreatePostScreen() {
         types,
         intent: isQA ? null : intent,
         location: location.trim() || undefined,
-        budget: budget ? parseFloat(budget) : undefined,
+        budgetMin: budgetMin ? parseInt(budgetMin) : undefined,
+        budgetMax: budgetMax ? parseInt(budgetMax) : undefined,
         startDate: needsDates ? buildDateString(startMM, startDD, startYYYY) : undefined,
         endDate: needsDates ? buildDateString(endMM, endDD, endYYYY) : undefined,
         createdAt: Date.now(),
@@ -225,6 +240,7 @@ export default function CreatePostScreen() {
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
         imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+        negotiable: negotiable || undefined,
       };
 
       console.info('Submitting Firestore post creation.', {
@@ -255,7 +271,8 @@ export default function CreatePostScreen() {
             setTypeWarning('');
             setIntent('OFFER');
             setLocation('');
-            setBudget('');
+            setBudgetMin('');
+            setBudgetMax('');
             setStartMM(''); setStartDD(''); setStartYYYY('');
             setEndMM(''); setEndDD(''); setEndYYYY('');
             setStartDateError(''); setEndDateError('');
@@ -263,6 +280,7 @@ export default function CreatePostScreen() {
             setWechatId('');
             setPhone('');
             setEmail('');
+            setNegotiable(false);
             setImageUris([]);
             setSubmitting(false);
             router.replace('/(tabs)');
@@ -331,6 +349,16 @@ export default function CreatePostScreen() {
               <IntentButton value="OFFER" label="I'm Offering" />
               <IntentButton value="SEEK" label="I'm Seeking" />
             </View>
+            {intent === 'OFFER' && (
+              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 6, paddingHorizontal: 4 }}>
+                🏠 You have a place or spot to offer — sublet, room, short-term stay, etc.
+              </Text>
+            )}
+            {intent === 'SEEK' && (
+              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 6, paddingHorizontal: 4 }}>
+                🔍 You're looking for a place, a room, or a roommate.
+              </Text>
+            )}
           </View>
         )}
 
@@ -380,15 +408,58 @@ export default function CreatePostScreen() {
         {/* Budget */}
         <View style={styles.section}>
           <Text style={styles.label}>Budget ($/month)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="E.g., 800"
-            value={budget}
-            onChangeText={setBudget}
-            keyboardType="numeric"
-            placeholderTextColor="#9CA3AF"
-          />
+          <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+            Fill in min, max, or both. e.g. "up to $1200/mo", "$800+/mo", or "$800–$1200/mo"
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              placeholder="Min"
+              keyboardType="numeric"
+              value={budgetMin}
+              onChangeText={(t) => {
+                const cleaned = t.replace(/[^0-9]/g, '');
+                setBudgetMin(cleaned);
+                if (cleaned === '' && budgetMax === '') setNegotiable(false);
+              }}
+              placeholderTextColor="#9CA3AF"
+            />
+            <Text style={{ color: '#9CA3AF' }}>—</Text>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              placeholder="Max"
+              keyboardType="numeric"
+              value={budgetMax}
+              onChangeText={(t) => {
+                const cleaned = t.replace(/[^0-9]/g, '');
+                setBudgetMax(cleaned);
+                if (cleaned === '' && budgetMin === '') setNegotiable(false);
+              }}
+              placeholderTextColor="#9CA3AF"
+            />
+            <Text style={{ color: '#6B7280', fontSize: 13 }}>$/mo</Text>
+          </View>
         </View>
+
+        {/* Negotiable toggle */}
+        {(budgetMin.trim() !== '' || budgetMax.trim() !== '') && (
+          <View style={{ marginTop: 0, marginBottom: 20 }}>
+            <TouchableOpacity
+              onPress={() => setNegotiable(!negotiable)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+            >
+              <View style={{
+                width: 22, height: 22, borderRadius: 4,
+                borderWidth: 1.5, borderColor: negotiable ? '#3B82F6' : '#D1D5DB',
+                backgroundColor: negotiable ? '#3B82F6' : 'white',
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                {negotiable && <Text style={{ color: 'white', fontSize: 13 }}>✓</Text>}
+              </View>
+              <Text style={{ fontSize: 14, color: '#374151' }}>{'🔪  Open to negotiation'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Dates (only for SUBLET and SHORT_TERM) */}
         {needsDates && (

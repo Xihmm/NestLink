@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
-  FlatList,
   TouchableOpacity,
   StyleSheet,
   TextInput,
@@ -59,6 +58,9 @@ export default function FeedScreen() {
     });
   }, [posts, searchQuery, filterType, filterIntent, feedMode, savedPostIds]);
 
+  const leftCol = filteredPosts.filter((_, i) => i % 2 === 0);
+  const rightCol = filteredPosts.filter((_, i) => i % 2 === 1);
+
   const getTimeAgo = (timestamp: number) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
     if (seconds < 60) return 'Just now';
@@ -70,33 +72,31 @@ export default function FeedScreen() {
     return `${days}d ago`;
   };
 
+  const parseLocalDate = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+
   const formatDateRange = (startDate?: string, endDate?: string) => {
     if (!startDate && !endDate) return null;
-    const start = startDate ? new Date(startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-    const end = endDate ? new Date(endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+    const start = startDate ? parseLocalDate(startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+    const end = endDate ? parseLocalDate(endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
     if (start && end) return `${start} - ${end}`;
     if (start) return `From ${start}`;
     if (end) return `Until ${end}`;
     return null;
   };
 
-  const getTypeBadgeColor = (type: PostType) => {
+  const getTypeTagStyle = (type: PostType): { backgroundColor: string; color: string } => {
     switch (type) {
-      case 'ROOMMATE':
-        return '#3B82F6'; // blue
-      case 'SUBLET':
-        return '#10B981'; // green
-      case 'SHORT_TERM':
-        return '#F59E0B'; // amber
-      case 'QA':
-        return '#8B5CF6'; // purple
+      case 'ROOMMATE': return { backgroundColor: '#EDE9FE', color: '#5B21B6' };
+      case 'SUBLET':   return { backgroundColor: '#D1FAE5', color: '#065F46' };
+      case 'SHORT_TERM': return { backgroundColor: '#FEF3C7', color: '#92400E' };
+      case 'QA':       return { backgroundColor: '#F3F4F6', color: '#374151' };
     }
   };
 
-  const getIntentBadgeColor = (intent: PostIntent) => {
-    if (intent === 'OFFER') return '#EC4899'; // pink
-    if (intent === 'SEEK') return '#6366F1'; // indigo
-    return '#9CA3AF'; // gray
+  const getIntentTagStyle = (intent: PostIntent): { backgroundColor: string; color: string } => {
+    if (intent === 'OFFER') return { backgroundColor: '#FCE7F3', color: '#9D174D' };
+    if (intent === 'SEEK')  return { backgroundColor: '#DBEAFE', color: '#1E40AF' };
+    return { backgroundColor: '#F3F4F6', color: '#374151' };
   };
 
   const isClosedStatus = (item: Post) =>
@@ -104,104 +104,113 @@ export default function FeedScreen() {
 
   const handleToggleSaved = async (postId: string) => {
     try {
-      console.info('Toggling saved post from feed.', { postId });
       await toggleSavedPost(postId);
     } catch (error) {
-      console.error('Failed to toggle saved post from feed:', error);
       Alert.alert('Save failed', 'We could not update your saved posts. Please try again.');
     }
   };
 
-  const renderPostItem = ({ item }: { item: Post }) => (
-    <TouchableOpacity
-      style={[styles.postCard, isClosedStatus(item) && styles.postCardClosed]}
-      onPress={() => router.push(`/post/${item.id}`)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.postHeader}>
-        <View style={styles.badges}>
-          {item.types.map((t) => (
-            <View key={t} style={[styles.badge, { backgroundColor: getTypeBadgeColor(t) }]}>
-              <Text style={styles.badgeText}>{t}</Text>
-            </View>
-          ))}
-          {item.intent && (
-            <View style={[styles.badge, { backgroundColor: getIntentBadgeColor(item.intent) }]}>
-              <Text style={styles.badgeText}>{item.intent}</Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.cardTopRight}>
-          {item.status === 'FOUND' && (
-            <View style={styles.statusChip}>
-              <Text style={styles.statusChipText}>✅ Found</Text>
-            </View>
-          )}
-          {item.status === 'RENTED_OUT' && (
-            <View style={styles.statusChip}>
-              <Text style={styles.statusChipText}>🏠 Rented</Text>
-            </View>
-          )}
-          <Text style={styles.timeAgo}>{getTimeAgo(item.createdAt)}</Text>
-        </View>
-      </View>
+  const PostCard = ({ item }: { item: Post }) => {
+    const hasImage = item.imageUrls && item.imageUrls.length > 0;
+    const dateRange = formatDateRange(item.startDate, item.endDate);
+    const budgetText = item.budgetMin && item.budgetMax
+      ? `$${item.budgetMin}–$${item.budgetMax}/mo`
+      : item.budgetMin
+      ? `$${item.budgetMin}+/mo`
+      : item.budgetMax
+      ? `Up to $${item.budgetMax}/mo`
+      : null;
 
-      {item.imageUrls && item.imageUrls.length > 0 && (
-        <View style={styles.thumbnailContainer}>
-          <Image
-            source={{ uri: item.imageUrls[0] }}
-            style={styles.postThumbnail}
-            resizeMode="cover"
-          />
-          {item.imageUrls.length > 1 && (
-            <View style={styles.photoCountBadge}>
-              <Text style={styles.photoCountText}>+{item.imageUrls.length - 1}</Text>
-            </View>
-          )}
-        </View>
-      )}
-
-      <Text style={styles.postTitle}>{item.title}</Text>
-      <Text style={styles.postBody} numberOfLines={2}>
-        {item.body}
-      </Text>
-
-      <View style={styles.postMeta}>
-        {item.location && (
-          <Text style={styles.metaText}>📍 {item.location}</Text>
+    return (
+      <TouchableOpacity
+        style={[styles.card, isClosedStatus(item) && styles.cardClosed]}
+        onPress={() => router.push(`/post/${item.id}`)}
+        activeOpacity={0.75}
+      >
+        {/* Image */}
+        {hasImage && (
+          <View style={styles.cardImageContainer}>
+            <Image
+              source={{ uri: item.imageUrls![0] }}
+              style={styles.cardImage}
+              resizeMode="cover"
+            />
+            {item.imageUrls!.length > 1 && (
+              <View style={styles.photoCountBadge}>
+                <Text style={styles.photoCountText}>+{item.imageUrls!.length - 1}</Text>
+              </View>
+            )}
+            {isClosedStatus(item) && (
+              <View style={styles.closedOverlay}>
+                <Text style={styles.closedOverlayText}>
+                  {item.status === 'FOUND' ? '✅ Found' : '🏠 Rented'}
+                </Text>
+              </View>
+            )}
+          </View>
         )}
-        {item.budget && (
-          <Text style={styles.metaText}>💰 ${item.budget}/mo</Text>
-        )}
-        {formatDateRange(item.startDate, item.endDate) && (
-          <Text style={styles.metaText}>📅 {formatDateRange(item.startDate, item.endDate)}</Text>
-        )}
-      </View>
 
-      <View style={styles.authorRow}>
-        <View style={styles.authorMeta}>
-          <Text style={styles.authorText}>by {item.authorName || 'Anonymous'}</Text>
-          {item.isSample && (
-            <View style={styles.sampleBadge}>
-              <Text style={styles.sampleBadgeText}>Sample</Text>
+        <View style={styles.cardBody}>
+          {/* Tags row */}
+          <View style={styles.tagsRow}>
+            {item.types.map((t) => {
+              const ts = getTypeTagStyle(t);
+              return (
+                <View key={t} style={[styles.tag, { backgroundColor: ts.backgroundColor }]}>
+                  <Text style={[styles.tagText, { color: ts.color }]}>{t}</Text>
+                </View>
+              );
+            })}
+            {item.intent && (() => {
+              const is = getIntentTagStyle(item.intent);
+              return (
+                <View style={[styles.tag, { backgroundColor: is.backgroundColor }]}>
+                  <Text style={[styles.tagText, { color: is.color }]}>{item.intent}</Text>
+                </View>
+              );
+            })()}
+            {!hasImage && isClosedStatus(item) && (
+              <View style={[styles.tag, { backgroundColor: '#F3F4F6' }]}>
+                <Text style={[styles.tagText, { color: '#374151' }]}>{item.status === 'FOUND' ? 'FOUND' : 'RENTED'}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Title */}
+          <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+
+          {/* Meta */}
+          {(item.location || budgetText || dateRange) && (
+            <View style={styles.cardMeta}>
+              {item.location && (
+                <Text style={styles.cardMetaText} numberOfLines={1}>📍 {item.location}</Text>
+              )}
+              {budgetText && (
+                <Text style={styles.cardMetaText} numberOfLines={1}>
+                  💰 {budgetText}{item.negotiable ? ' 🔪' : ''}
+                </Text>
+              )}
+              {dateRange && (
+                <Text style={styles.cardMetaText} numberOfLines={1}>📅 {dateRange}</Text>
+              )}
             </View>
           )}
+
+          {/* Footer */}
+          <View style={styles.cardFooter}>
+            <Text style={styles.cardTime}>{getTimeAgo(item.createdAt)}</Text>
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation(); handleToggleSaved(item.id); }}
+              activeOpacity={0.8}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={{ fontSize: 16 }}>{isPostSaved(item.id) ? '❤️' : '🤍'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        <TouchableOpacity
-          style={[styles.saveButton, isPostSaved(item.id) && styles.saveButtonActive]}
-          onPress={(event) => {
-            event.stopPropagation();
-            handleToggleSaved(item.id);
-          }}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.saveButtonText, isPostSaved(item.id) && styles.saveButtonTextActive]}>
-            {isPostSaved(item.id) ? '🔖 Saved' : '🔖 Save'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const TypeFilterButton = ({ type, label }: { type: FilterType; label: string }) => (
     <TouchableOpacity
@@ -244,7 +253,7 @@ export default function FeedScreen() {
         )}
       </View>
 
-      {/* Filter rows — fixed-height parent so layout never shifts */}
+      {/* Filter rows */}
       <View style={styles.filterSection}>
         <ScrollView
           horizontal
@@ -295,23 +304,42 @@ export default function FeedScreen() {
           <IntentFilterButton intent="OFFER" label="Offering" />
           <IntentFilterButton intent="SEEK" label="Seeking" />
         </ScrollView>
+        {filterIntent === 'OFFER' && (
+          <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4, paddingHorizontal: 16 }}>
+            Showing posts from people offering a place
+          </Text>
+        )}
+        {filterIntent === 'SEEK' && (
+          <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4, paddingHorizontal: 16 }}>
+            Showing posts from people looking for a place
+          </Text>
+        )}
       </View>
 
-      {/* Posts List */}
-      <FlatList
-        data={filteredPosts}
-        renderItem={renderPostItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
+      {/* Masonry Feed */}
+      <ScrollView
+        style={styles.feedScroll}
+        contentContainerStyle={styles.feedContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {filteredPosts.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>{feedMode === 'SAVED' ? 'No saved posts yet' : 'No posts found'}</Text>
             <Text style={styles.emptySubtext}>
               {feedMode === 'SAVED' ? 'Save posts from the feed or post details to find them here' : 'Try adjusting your filters or search query'}
             </Text>
           </View>
-        }
-      />
+        ) : (
+          <View style={styles.masonryRow}>
+            <View style={styles.masonryCol}>
+              {leftCol.map((item) => <PostCard key={item.id} item={item} />)}
+            </View>
+            <View style={styles.masonryCol}>
+              {rightCol.map((item) => <PostCard key={item.id} item={item} />)}
+            </View>
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -319,7 +347,7 @@ export default function FeedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#EEF2F7',
     paddingTop: 8,
   },
   searchContainer: {
@@ -350,10 +378,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   filterSection: {
-    height: 144,
+    minHeight: 144,
   },
   filterRow: {
-    height: 44,
+    minHeight: 44,
     marginBottom: 8,
   },
   filterRowContent: {
@@ -382,164 +410,122 @@ const styles = StyleSheet.create({
   filterButtonTextActive: {
     color: '#FFFFFF',
   },
-  listContent: {
-    padding: 14,
-  },
-  postCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  postCardClosed: {
-    opacity: 0.6,
-  },
-  postHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 10,
-    minHeight: 24,
-  },
-  cardTopRight: {
-    alignItems: 'flex-end',
-    gap: 4,
-    marginLeft: 12,
-  },
-  saveButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-  },
-  saveButtonActive: {
-    backgroundColor: '#DBEAFE',
-    borderColor: '#60A5FA',
-  },
-  saveButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  saveButtonTextActive: {
-    color: '#1D4ED8',
-  },
-  statusChip: {
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  statusChipText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#065F46',
-  },
-  badges: {
-    flexDirection: 'row',
-    gap: 6,
-    flexWrap: 'wrap',
+  feedScroll: {
     flex: 1,
   },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
+  feedContent: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 20,
   },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
+  masonryRow: {
+    flexDirection: 'row',
+    gap: 8,
   },
-  timeAgo: {
-    fontSize: 12,
-    color: '#9CA3AF',
+  masonryCol: {
+    flex: 1,
+    gap: 8,
   },
-  postTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  postBody: {
-    fontSize: 13,
-    color: '#6B7280',
-    lineHeight: 18,
-    marginBottom: 8,
-  },
-  thumbnailContainer: {
-    position: 'relative',
-    marginBottom: 10,
-    width: '100%',
-    borderRadius: 14,
+  // Masonry card
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  postThumbnail: {
+  cardClosed: {
+    opacity: 0.55,
+  },
+  cardImageContainer: {
+    position: 'relative',
     width: '100%',
-    height: 200,
+    backgroundColor: '#E5E7EB',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+  },
+  cardImage: {
+    width: '100%',
+    height: 160,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   photoCountBadge: {
     position: 'absolute',
-    right: 10,
-    bottom: 10,
+    right: 8,
+    bottom: 8,
     backgroundColor: 'rgba(17, 24, 39, 0.72)',
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
   },
   photoCountText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
-  postMeta: {
+  closedOverlay: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.9)',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  closedOverlayText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  cardBody: {
+    padding: 10,
+    minHeight: 100,
+  },
+  tagsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 4,
     marginBottom: 6,
   },
-  metaText: {
-    fontSize: 12,
-    color: '#4B5563',
-  },
-  authorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  authorMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  authorText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontStyle: 'italic',
-  },
-  sampleBadge: {
-    backgroundColor: '#E5E7EB',
-    paddingHorizontal: 6,
+  tag: {
+    paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 4,
   },
-  sampleBadgeText: {
-    fontSize: 10,
+  tagText: {
+    fontSize: 9,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+    lineHeight: 19,
+    marginBottom: 4,
+  },
+  cardMeta: {
+    gap: 2,
+    marginBottom: 6,
+  },
+  cardMetaText: {
+    fontSize: 11,
     color: '#6B7280',
-    fontWeight: '600',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  cardTime: {
+    fontSize: 10,
+    color: '#9CA3AF',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -555,5 +541,6 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 14,
     color: '#9CA3AF',
+    textAlign: 'center',
   },
 });
