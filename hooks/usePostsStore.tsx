@@ -1,15 +1,21 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { collection, query, orderBy, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Post, PostStatus } from '@/types/post';
+import { useAuth } from '@/hooks/useAuth';
 
 interface PostsContextType {
   posts: Post[];
   loading: boolean;
+  savedPostIds: string[];
+  savedPostsLoading: boolean;
   addPost: (post: Post) => Promise<void>;
+  updatePost: (id: string, updates: Partial<Post>, isSample?: boolean) => Promise<void>;
   updatePostStatus: (id: string, status: PostStatus, isSample?: boolean) => Promise<void>;
   deletePost: (id: string, isSample?: boolean) => Promise<void>;
   getPostById: (id: string) => Post | undefined;
+  isPostSaved: (id: string) => boolean;
+  toggleSavedPost: (id: string) => Promise<void>;
 }
 
 const PostsContext = createContext<PostsContextType | undefined>(undefined);
@@ -169,8 +175,11 @@ const SAMPLE_POSTS: Post[] = [
 ];
 
 export const PostsProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
   const [posts, setPosts] = useState<Post[]>(SAMPLE_POSTS);
   const [loading, setLoading] = useState(true);
+  const [savedPostIds, setSavedPostIds] = useState<string[]>([]);
+  const [savedPostsLoading, setSavedPostsLoading] = useState(true);
 
   useEffect(() => {
     const fetchPosts = async () => {
@@ -195,14 +204,76 @@ export const PostsProvider = ({ children }: { children: ReactNode }) => {
     fetchPosts();
   }, []);
 
+  useEffect(() => {
+    const fetchSavedPosts = async () => {
+      if (!user?.uid) {
+        setSavedPostIds([]);
+        setSavedPostsLoading(false);
+        return;
+      }
+
+      setSavedPostsLoading(true);
+
+      try {
+        const savedDocRef = doc(db, 'users', user.uid);
+        console.info('Fetching saved posts document.', {
+          uid: user.uid,
+          firestorePath: `users/${user.uid}`,
+        });
+        const snapshot = await getDoc(savedDocRef);
+        const savedIds = snapshot.exists() ? snapshot.data().savedPostIds : [];
+        setSavedPostIds(Array.isArray(savedIds) ? savedIds : []);
+      } catch (error) {
+        console.error('Failed to fetch saved posts:', {
+          uid: user.uid,
+          firestorePath: `users/${user.uid}`,
+          error,
+        });
+        setSavedPostIds([]);
+      } finally {
+        setSavedPostsLoading(false);
+      }
+    };
+
+    fetchSavedPosts();
+  }, [user?.uid]);
+
   const addPost = async (post: Post) => {
+    if (!user?.uid) {
+      console.error('Blocked post creation because auth user is missing.');
+      throw new Error('Authentication is still loading. Please try again.');
+    }
+
     const { id, isSample, ...firestoreData } = post;
+    const dataWithAuthor = { ...firestoreData, authorId: user.uid };
     const cleanData = Object.fromEntries(
-      Object.entries(firestoreData).filter(([_, v]) => v !== undefined)
+      Object.entries(dataWithAuthor).filter(([_, v]) => v !== undefined && v !== null)
     );
-    const docRef = await addDoc(collection(db, 'posts'), cleanData);
-    const savedPost: Post = { ...post, id: docRef.id };
+
+    console.info('Creating Firestore post document.', { authorId: user.uid });
+
+    let docRef;
+    try {
+      docRef = await addDoc(collection(db, 'posts'), cleanData);
+    } catch (error) {
+      console.error('Firestore post creation failed:', error);
+      throw error;
+    }
+
+    const savedPost: Post = { ...post, id: docRef.id, authorId: user.uid };
     setPosts((prev) => [savedPost, ...prev]);
+  };
+
+  const updatePost = async (id: string, updates: Partial<Post>, isSample = false) => {
+    if (!isSample) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { isSample: _s, id: _id, ...firestoreUpdates } = updates as Post;
+      const cleanData = Object.fromEntries(
+        Object.entries(firestoreUpdates).filter(([_, v]) => v !== undefined && v !== null)
+      );
+      await updateDoc(doc(db, 'posts', id), cleanData);
+    }
+    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
   };
 
   const updatePostStatus = async (id: string, status: PostStatus, isSample = false) => {
@@ -217,12 +288,69 @@ export const PostsProvider = ({ children }: { children: ReactNode }) => {
       await deleteDoc(doc(db, 'posts', id));
     }
     setPosts((prev) => prev.filter((p) => p.id !== id));
+    setSavedPostIds((prev) => prev.filter((savedId) => savedId !== id));
   };
 
   const getPostById = (id: string) => posts.find((post) => post.id === id);
+  const isPostSaved = (id: string) => savedPostIds.includes(id);
+
+  const toggleSavedPost = async (id: string) => {
+    if (!user?.uid) {
+      console.error('Blocked save toggle because auth user is missing.');
+      throw new Error('Authentication is still loading. Please try again.');
+    }
+    if (!id) {
+      console.error('Blocked save toggle because post id is missing.', {
+        uid: user.uid,
+        postId: id,
+      });
+      throw new Error('This post could not be saved because its ID is missing.');
+    }
+
+    const nextSavedPostIds = savedPostIds.includes(id)
+      ? savedPostIds.filter((savedId) => savedId !== id)
+      : [...savedPostIds, id];
+
+    setSavedPostIds(nextSavedPostIds);
+
+    try {
+      const firestorePath = `users/${user.uid}`;
+      const savedDocRef = doc(db, 'users', user.uid);
+      console.info('Persisting saved posts toggle.', {
+        uid: user.uid,
+        postId: id,
+        firestorePath,
+        nextSavedPostIds,
+      });
+      await setDoc(savedDocRef, { savedPostIds: nextSavedPostIds }, { merge: true });
+    } catch (error) {
+      console.error('Failed to persist saved posts:', {
+        uid: user.uid,
+        postId: id,
+        firestorePath: `users/${user.uid}`,
+        error,
+      });
+      setSavedPostIds(savedPostIds);
+      throw error;
+    }
+  };
 
   return (
-    <PostsContext.Provider value={{ posts, loading, addPost, updatePostStatus, deletePost, getPostById }}>
+    <PostsContext.Provider
+      value={{
+        posts,
+        loading,
+        savedPostIds,
+        savedPostsLoading,
+        addPost,
+        updatePost,
+        updatePostStatus,
+        deletePost,
+        getPostById,
+        isPostSaved,
+        toggleSavedPost,
+      }}
+    >
       {children}
     </PostsContext.Provider>
   );

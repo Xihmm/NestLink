@@ -7,6 +7,8 @@ import {
   StyleSheet,
   TextInput,
   ScrollView,
+  Image,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePostsStore } from '@/hooks/usePostsStore';
@@ -14,17 +16,23 @@ import { Post, PostType, PostIntent } from '@/types/post';
 
 type FilterType = 'ALL' | PostType;
 type FilterIntent = 'ALL' | 'OFFER' | 'SEEK';
+type FeedMode = 'ALL' | 'SAVED';
 
 export default function FeedScreen() {
   const router = useRouter();
-  const { posts } = usePostsStore();
+  const { posts, savedPostIds, isPostSaved, toggleSavedPost } = usePostsStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('ALL');
   const [filterIntent, setFilterIntent] = useState<FilterIntent>('ALL');
+  const [feedMode, setFeedMode] = useState<FeedMode>('ALL');
 
   // Filter and search posts
   const filteredPosts = useMemo(() => {
     return posts.filter((post) => {
+      if (feedMode === 'SAVED' && !savedPostIds.includes(post.id)) {
+        return false;
+      }
+
       // Type filter
       if (filterType !== 'ALL' && !post.types.includes(filterType)) {
         return false;
@@ -49,7 +57,7 @@ export default function FeedScreen() {
 
       return true;
     });
-  }, [posts, searchQuery, filterType, filterIntent]);
+  }, [posts, searchQuery, filterType, filterIntent, feedMode, savedPostIds]);
 
   const getTimeAgo = (timestamp: number) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -94,6 +102,16 @@ export default function FeedScreen() {
   const isClosedStatus = (item: Post) =>
     item.status === 'FOUND' || item.status === 'RENTED_OUT';
 
+  const handleToggleSaved = async (postId: string) => {
+    try {
+      console.info('Toggling saved post from feed.', { postId });
+      await toggleSavedPost(postId);
+    } catch (error) {
+      console.error('Failed to toggle saved post from feed:', error);
+      Alert.alert('Save failed', 'We could not update your saved posts. Please try again.');
+    }
+  };
+
   const renderPostItem = ({ item }: { item: Post }) => (
     <TouchableOpacity
       style={[styles.postCard, isClosedStatus(item) && styles.postCardClosed]}
@@ -128,6 +146,21 @@ export default function FeedScreen() {
         </View>
       </View>
 
+      {item.imageUrls && item.imageUrls.length > 0 && (
+        <View style={styles.thumbnailContainer}>
+          <Image
+            source={{ uri: item.imageUrls[0] }}
+            style={styles.postThumbnail}
+            resizeMode="cover"
+          />
+          {item.imageUrls.length > 1 && (
+            <View style={styles.photoCountBadge}>
+              <Text style={styles.photoCountText}>+{item.imageUrls.length - 1}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
       <Text style={styles.postTitle}>{item.title}</Text>
       <Text style={styles.postBody} numberOfLines={2}>
         {item.body}
@@ -146,12 +179,26 @@ export default function FeedScreen() {
       </View>
 
       <View style={styles.authorRow}>
-        <Text style={styles.authorText}>by {item.authorName || 'Anonymous'}</Text>
-        {item.isSample && (
-          <View style={styles.sampleBadge}>
-            <Text style={styles.sampleBadgeText}>Sample</Text>
-          </View>
-        )}
+        <View style={styles.authorMeta}>
+          <Text style={styles.authorText}>by {item.authorName || 'Anonymous'}</Text>
+          {item.isSample && (
+            <View style={styles.sampleBadge}>
+              <Text style={styles.sampleBadgeText}>Sample</Text>
+            </View>
+          )}
+        </View>
+        <TouchableOpacity
+          style={[styles.saveButton, isPostSaved(item.id) && styles.saveButtonActive]}
+          onPress={(event) => {
+            event.stopPropagation();
+            handleToggleSaved(item.id);
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.saveButtonText, isPostSaved(item.id) && styles.saveButtonTextActive]}>
+            {isPostSaved(item.id) ? '🔖 Saved' : '🔖 Save'}
+          </Text>
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
@@ -205,6 +252,30 @@ export default function FeedScreen() {
           style={styles.filterRow}
           contentContainerStyle={styles.filterRowContent}
         >
+          <TouchableOpacity
+            style={[styles.filterButton, feedMode === 'ALL' && styles.filterButtonActive]}
+            onPress={() => setFeedMode('ALL')}
+          >
+            <Text style={[styles.filterButtonText, feedMode === 'ALL' && styles.filterButtonTextActive]}>
+              All Posts
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterButton, feedMode === 'SAVED' && styles.filterButtonActive]}
+            onPress={() => setFeedMode('SAVED')}
+          >
+            <Text style={[styles.filterButtonText, feedMode === 'SAVED' && styles.filterButtonTextActive]}>
+              Saved
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterRow}
+          contentContainerStyle={styles.filterRowContent}
+        >
           <TypeFilterButton type="ALL" label="All" />
           <TypeFilterButton type="ROOMMATE" label="Roommate" />
           <TypeFilterButton type="SUBLET" label="Sublet" />
@@ -234,8 +305,10 @@ export default function FeedScreen() {
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No posts found</Text>
-            <Text style={styles.emptySubtext}>Try adjusting your filters or search query</Text>
+            <Text style={styles.emptyText}>{feedMode === 'SAVED' ? 'No saved posts yet' : 'No posts found'}</Text>
+            <Text style={styles.emptySubtext}>
+              {feedMode === 'SAVED' ? 'Save posts from the feed or post details to find them here' : 'Try adjusting your filters or search query'}
+            </Text>
           </View>
         }
       />
@@ -277,7 +350,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   filterSection: {
-    height: 100,
+    height: 144,
   },
   filterRow: {
     height: 44,
@@ -310,13 +383,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   listContent: {
-    padding: 16,
+    padding: 14,
   },
   postCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     shadowColor: '#000',
@@ -332,11 +405,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginBottom: 10,
+    minHeight: 24,
   },
   cardTopRight: {
     alignItems: 'flex-end',
     gap: 4,
+    marginLeft: 12,
+  },
+  saveButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  saveButtonActive: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#60A5FA',
+  },
+  saveButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  saveButtonTextActive: {
+    color: '#1D4ED8',
   },
   statusChip: {
     backgroundColor: '#D1FAE5',
@@ -352,15 +447,17 @@ const styles = StyleSheet.create({
   badges: {
     flexDirection: 'row',
     gap: 6,
+    flexWrap: 'wrap',
+    flex: 1,
   },
   badge: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 3,
+    borderRadius: 999,
   },
   badgeText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
@@ -369,31 +466,64 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   postTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   postBody: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
-    lineHeight: 20,
-    marginBottom: 12,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  thumbnailContainer: {
+    position: 'relative',
+    marginBottom: 10,
+    width: '100%',
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: '#E5E7EB',
+  },
+  postThumbnail: {
+    width: '100%',
+    height: 200,
+  },
+  photoCountBadge: {
+    position: 'absolute',
+    right: 10,
+    bottom: 10,
+    backgroundColor: 'rgba(17, 24, 39, 0.72)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  photoCountText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   postMeta: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 8,
+    gap: 10,
+    marginBottom: 6,
   },
   metaText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#4B5563',
   },
   authorRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  authorMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
+    flex: 1,
   },
   authorText: {
     fontSize: 12,

@@ -17,8 +17,10 @@ export interface Post {
   wechatId?: string;
   phone?: string;
   email?: string;
+  authorId?: string;
   isSample?: boolean;
   status?: PostStatus;
+  imageUrls?: string[];
 }
 
 
