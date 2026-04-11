@@ -8,55 +8,178 @@ import {
   ScrollView,
   Image,
   Alert,
+  Modal,
+  Pressable,
+  useColorScheme,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePostsStore } from '@/hooks/usePostsStore';
+import { useAuth } from '@/hooks/useAuth';
 import { Post, PostType, PostIntent } from '@/types/post';
 
 type FilterType = 'ALL' | PostType;
 type FilterIntent = 'ALL' | 'OFFER' | 'SEEK';
-type FeedMode = 'ALL' | 'SAVED';
+type ActiveTab = 'ALL' | 'SAVED' | 'mine';
+
+
+const LOCATION_OPTIONS = [
+  'Any',
+  'UR Campus',
+  'Tower 280',
+  'Innovation Square',
+  'Nathaniel',
+  'Riverview',
+  'South Wedge',
+  'Park Ave',
+  'Downtown Rochester',
+];
+
+const TIME_OPTIONS = [
+  { label: 'Any time', value: 'all' },
+  { label: 'Today', value: 'today' },
+  { label: 'This week', value: 'week' },
+  { label: 'This month', value: 'month' },
+];
+
+const getColors = (isDark: boolean) => ({
+  bg: isDark ? '#111827' : '#EEF2F7',
+  card: isDark ? '#1F2937' : '#FFFFFF',
+  text: isDark ? '#F9FAFB' : '#1F2937',
+  subtext: isDark ? '#9CA3AF' : '#6B7280',
+  border: isDark ? '#374151' : '#E5E7EB',
+  input: isDark ? '#1F2937' : '#FFFFFF',
+  pill: isDark ? '#1F2937' : '#FFFFFF',
+  isDark,
+});
 
 export default function FeedScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const colors = getColors(isDark);
+  const styles = createStyles(colors);
   const { posts, savedPostIds, isPostSaved, toggleSavedPost } = usePostsStore();
+  const { user } = useAuth();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('ALL');
   const [filterIntent, setFilterIntent] = useState<FilterIntent>('ALL');
-  const [feedMode, setFeedMode] = useState<FeedMode>('ALL');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('ALL');
+
+  // Applied filter state
+  const [timeFilter, setTimeFilter] = useState('all');
+  const [locationFilter, setLocationFilter] = useState<string[]>([]);
+
+  // Modal state
+  const [showFilter, setShowFilter] = useState(false);
+
+  // Draft state (lives inside the modal before Apply)
+  const [pendingTime, setPendingTime] = useState('all');
+  const [pendingLocations, setPendingLocations] = useState<string[]>([]);
+  const [budgetPills, setBudgetPills] = useState<string[]>([]);
+
+  const hasActiveFilter =
+    locationFilter.length > 0 || timeFilter !== 'all' || budgetPills.length > 0;
+
+  const openFilter = () => {
+    setPendingTime(timeFilter);
+    setPendingLocations([...locationFilter]);
+    // minPrice/maxPrice are already live draft state, no reset needed on open
+    setShowFilter(true);
+  };
+
+  const applyFilter = () => {
+    setTimeFilter(pendingTime);
+    setLocationFilter([...pendingLocations]);
+    setShowFilter(false);
+  };
+
+  const clearFilter = () => {
+    setPendingTime('all');
+    setPendingLocations([]);
+    setBudgetPills([]);
+  };
+
+  const toggleBudgetPill = (val: string) => {
+    setBudgetPills((prev) =>
+      prev.includes(val) ? prev.filter((p) => p !== val) : [...prev, val]
+    );
+  };
+
+  const togglePendingLocation = (loc: string) => {
+    if (loc === 'Any') {
+      setPendingLocations([]);
+      return;
+    }
+    setPendingLocations((prev) =>
+      prev.includes(loc) ? prev.filter((l) => l !== loc) : [...prev, loc]
+    );
+  };
 
   // Filter and search posts
   const filteredPosts = useMemo(() => {
+    if (activeTab === 'mine') {
+      if (!user || user.isAnonymous) return [];
+      return posts.filter((p) => p.authorId === user.uid && !p.isSample);
+    }
+
     return posts.filter((post) => {
-      if (feedMode === 'SAVED' && !savedPostIds.includes(post.id)) {
-        return false;
-      }
+      if (activeTab === 'SAVED' && !savedPostIds.includes(post.id)) return false;
 
       // Type filter
-      if (filterType !== 'ALL' && !post.types.includes(filterType)) {
-        return false;
-      }
+      if (filterType !== 'ALL' && !post.types.includes(filterType)) return false;
 
       // Intent filter (skip for QA posts)
       if (filterIntent !== 'ALL' && !post.types.includes('QA')) {
-        if (post.intent !== filterIntent) {
-          return false;
-        }
+        if (post.intent !== filterIntent) return false;
       }
 
       // Search query
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
-        return (
-          post.title.toLowerCase().includes(query) ||
-          post.body.toLowerCase().includes(query) ||
-          post.location?.toLowerCase().includes(query)
-        );
+        if (
+          !post.title.toLowerCase().includes(query) &&
+          !post.body.toLowerCase().includes(query) &&
+          !post.location?.toLowerCase().includes(query)
+        ) return false;
+      }
+
+      // Time filter
+      if (timeFilter === 'today') {
+        if (post.createdAt < Date.now() - 24 * 60 * 60 * 1000) return false;
+      }
+      if (timeFilter === 'week') {
+        if (post.createdAt < Date.now() - 7 * 24 * 60 * 60 * 1000) return false;
+      }
+      if (timeFilter === 'month') {
+        if (post.createdAt < Date.now() - 30 * 24 * 60 * 60 * 1000) return false;
+      }
+
+
+      // Location filter
+      if (locationFilter.length > 0) {
+        if (!post.location) return false;
+        const loc = post.location.toLowerCase();
+        if (!locationFilter.some((f) => loc.includes(f.toLowerCase()))) return false;
+      }
+
+      // Budget filter (pills take priority over slider)
+      if (budgetPills.length > 0) {
+        const b = post.budgetMin ?? post.budgetMax ?? 0;
+        const match = budgetPills.some((pill) => {
+          if (pill === '<$500') return b < 500;
+          if (pill === '$500-$800') return b >= 500 && b <= 800;
+          if (pill === '$800-$1200') return b >= 800 && b <= 1200;
+          if (pill === '$1200-$1800') return b >= 1200 && b <= 1800;
+          if (pill === '$1800+') return b > 1800;
+          return false;
+        });
+        if (!match) return false;
       }
 
       return true;
     });
-  }, [posts, searchQuery, filterType, filterIntent, feedMode, savedPostIds]);
+  }, [posts, searchQuery, filterType, filterIntent, activeTab, savedPostIds, user, timeFilter, locationFilter, budgetPills]);
 
   const leftCol = filteredPosts.filter((_, i) => i % 2 === 0);
   const rightCol = filteredPosts.filter((_, i) => i % 2 === 1);
@@ -105,7 +228,7 @@ export default function FeedScreen() {
   const handleToggleSaved = async (postId: string) => {
     try {
       await toggleSavedPost(postId);
-    } catch (error) {
+    } catch {
       Alert.alert('Save failed', 'We could not update your saved posts. Please try again.');
     }
   };
@@ -127,7 +250,6 @@ export default function FeedScreen() {
         onPress={() => router.push(`/post/${item.id}`)}
         activeOpacity={0.75}
       >
-        {/* Image */}
         {hasImage && (
           <View style={styles.cardImageContainer}>
             <Image
@@ -151,7 +273,6 @@ export default function FeedScreen() {
         )}
 
         <View style={styles.cardBody}>
-          {/* Tags row */}
           <View style={styles.tagsRow}>
             {item.types.map((t) => {
               const ts = getTypeTagStyle(t);
@@ -176,10 +297,8 @@ export default function FeedScreen() {
             )}
           </View>
 
-          {/* Title */}
           <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
 
-          {/* Meta */}
           {(item.location || budgetText || dateRange) && (
             <View style={styles.cardMeta}>
               {item.location && (
@@ -196,7 +315,6 @@ export default function FeedScreen() {
             </View>
           )}
 
-          {/* Footer */}
           <View style={styles.cardFooter}>
             <Text style={styles.cardTime}>{getTimeAgo(item.createdAt)}</Text>
             <TouchableOpacity
@@ -236,21 +354,37 @@ export default function FeedScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Text style={styles.searchIcon}>🔍</Text>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search posts..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholderTextColor="#9CA3AF"
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Text style={styles.clearButton}>✕</Text>
-          </TouchableOpacity>
-        )}
+      {/* Search Bar + Filter Button */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 8, marginBottom: 8, gap: 8 }}>
+        <View style={[styles.searchContainer, { flex: 1, marginHorizontal: 0, marginTop: 0, marginBottom: 0 }]}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search posts..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor="#9CA3AF"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Text style={styles.clearButton}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity
+          onPress={openFilter}
+          style={{
+            paddingHorizontal: 12, paddingVertical: 10,
+            borderRadius: 12, borderWidth: 1,
+            borderColor: hasActiveFilter ? '#3B82F6' : colors.border,
+            backgroundColor: hasActiveFilter ? '#EFF6FF' : colors.card,
+            flexDirection: 'row', alignItems: 'center', gap: 4,
+          }}
+        >
+          <Text style={{ fontSize: 13, color: hasActiveFilter ? '#3B82F6' : colors.subtext, fontWeight: '600' }}>
+            ⚙ Filter{hasActiveFilter ? ' •' : ''}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Filter rows */}
@@ -262,19 +396,27 @@ export default function FeedScreen() {
           contentContainerStyle={styles.filterRowContent}
         >
           <TouchableOpacity
-            style={[styles.filterButton, feedMode === 'ALL' && styles.filterButtonActive]}
-            onPress={() => setFeedMode('ALL')}
+            style={[styles.filterButton, activeTab === 'ALL' && styles.filterButtonActive]}
+            onPress={() => setActiveTab('ALL')}
           >
-            <Text style={[styles.filterButtonText, feedMode === 'ALL' && styles.filterButtonTextActive]}>
+            <Text style={[styles.filterButtonText, activeTab === 'ALL' && styles.filterButtonTextActive]}>
               All Posts
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.filterButton, feedMode === 'SAVED' && styles.filterButtonActive]}
-            onPress={() => setFeedMode('SAVED')}
+            style={[styles.filterButton, activeTab === 'SAVED' && styles.filterButtonActive]}
+            onPress={() => setActiveTab('SAVED')}
           >
-            <Text style={[styles.filterButtonText, feedMode === 'SAVED' && styles.filterButtonTextActive]}>
+            <Text style={[styles.filterButtonText, activeTab === 'SAVED' && styles.filterButtonTextActive]}>
               Saved
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterButton, activeTab === 'mine' && styles.filterButtonActive]}
+            onPress={() => setActiveTab('mine')}
+          >
+            <Text style={[styles.filterButtonText, activeTab === 'mine' && styles.filterButtonTextActive]}>
+              My Posts
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -324,9 +466,15 @@ export default function FeedScreen() {
       >
         {filteredPosts.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>{feedMode === 'SAVED' ? 'No saved posts yet' : 'No posts found'}</Text>
+            <Text style={styles.emptyText}>
+              {activeTab === 'mine'
+                ? (user?.isAnonymous ? 'Sign in to see your posts' : "You haven't posted anything yet")
+                : activeTab === 'SAVED' ? 'No saved posts yet' : 'No posts found'}
+            </Text>
             <Text style={styles.emptySubtext}>
-              {feedMode === 'SAVED' ? 'Save posts from the feed or post details to find them here' : 'Try adjusting your filters or search query'}
+              {activeTab === 'mine'
+                ? (user?.isAnonymous ? 'Create a free account to start posting.' : 'Your posts will appear here once you create them.')
+                : activeTab === 'SAVED' ? 'Save posts from the feed or post details to find them here' : 'Try adjusting your filters or search query'}
             </Text>
           </View>
         ) : (
@@ -340,20 +488,103 @@ export default function FeedScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Filter Modal */}
+      <Modal
+        visible={showFilter}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowFilter(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowFilter(false)} />
+        <View style={styles.modalSheet}>
+          {/* Handle */}
+          <View style={styles.modalHandle} />
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+            {/* Budget */}
+            <Text style={styles.modalSectionTitle}>Budget ($/month)</Text>
+            <Text style={styles.modalSectionHint}>
+              Choose one or more preset ranges for the fastest filter.
+            </Text>
+
+            {/* Budget quick-pick pills */}
+            <View style={[styles.pillRow, { marginBottom: 20 }]}>
+              {['<$500', '$500-$800', '$800-$1200', '$1200-$1800', '$1800+'].map((val) => (
+                <TouchableOpacity
+                  key={val}
+                  onPress={() => toggleBudgetPill(val)}
+                  style={[styles.pill, budgetPills.includes(val) && styles.pillActiveBlue]}
+                >
+                  <Text style={[styles.pillText, budgetPills.includes(val) && styles.pillTextActiveBlue]}>
+                    {val}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Popular Areas */}
+            <Text style={styles.modalSectionTitle}>Popular Areas</Text>
+            <View style={styles.pillRow}>
+              {LOCATION_OPTIONS.map((loc) => {
+                const isAny = loc === 'Any';
+                const active = isAny ? pendingLocations.length === 0 : pendingLocations.includes(loc);
+                return (
+                  <TouchableOpacity
+                    key={loc}
+                    onPress={() => togglePendingLocation(loc)}
+                    style={[styles.pill, active && styles.pillActiveGreen]}
+                  >
+                    <Text style={[styles.pillText, active && styles.pillTextActiveGreen]}>
+                      {loc}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Posted */}
+            <Text style={styles.modalSectionTitle}>Posted</Text>
+            <View style={styles.pillRow}>
+              {TIME_OPTIONS.map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  onPress={() => setPendingTime(opt.value)}
+                  style={[styles.pill, pendingTime === opt.value && styles.pillActiveBlue]}
+                >
+                  <Text style={[styles.pillText, pendingTime === opt.value && styles.pillTextActiveBlue]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* Footer buttons */}
+          <View style={styles.modalFooter}>
+            <TouchableOpacity style={styles.modalClearButton} onPress={clearFilter}>
+              <Text style={styles.modalClearText}>Clear All</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalApplyButton} onPress={applyFilter}>
+              <Text style={styles.modalApplyText}>Apply</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof getColors>) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#EEF2F7',
+    backgroundColor: colors.bg,
     paddingTop: 8,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     marginHorizontal: 16,
     marginTop: 8,
     marginBottom: 8,
@@ -361,7 +592,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   searchIcon: {
     fontSize: 18,
@@ -370,7 +601,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: '#111827',
+    color: colors.text,
   },
   clearButton: {
     fontSize: 18,
@@ -394,9 +625,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   filterButtonActive: {
     backgroundColor: '#3B82F6',
@@ -405,7 +636,7 @@ const styles = StyleSheet.create({
   filterButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
+    color: colors.subtext,
   },
   filterButtonTextActive: {
     color: '#FFFFFF',
@@ -426,16 +657,17 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 8,
   },
-  // Masonry card
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 16,
     overflow: 'hidden',
+    borderWidth: colors.isDark ? 0.5 : 0,
+    borderColor: colors.isDark ? colors.border : 'transparent',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: colors.isDark ? 0 : 0.06,
     shadowRadius: 6,
-    elevation: 3,
+    elevation: colors.isDark ? 0 : 3,
   },
   cardClosed: {
     opacity: 0.55,
@@ -443,7 +675,7 @@ const styles = StyleSheet.create({
   cardImageContainer: {
     position: 'relative',
     width: '100%',
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     overflow: 'hidden',
@@ -505,7 +737,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#111827',
+    color: colors.text,
     lineHeight: 19,
     marginBottom: 4,
   },
@@ -515,7 +747,7 @@ const styles = StyleSheet.create({
   },
   cardMetaText: {
     fontSize: 11,
-    color: '#6B7280',
+    color: colors.subtext,
   },
   cardFooter: {
     flexDirection: 'row',
@@ -535,12 +767,113 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#6B7280',
+    color: colors.subtext,
     marginBottom: 4,
   },
   emptySubtext: {
     fontSize: 14,
     color: '#9CA3AF',
     textAlign: 'center',
+  },
+  // Modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  modalSheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    maxHeight: '75%',
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  modalSectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 10,
+    marginTop: 4,
+  },
+  modalSectionHint: {
+    fontSize: 13,
+    color: colors.subtext,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  pillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  pill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.pill,
+  },
+  pillActiveBlue: {
+    borderColor: '#3B82F6',
+    backgroundColor: '#EFF6FF',
+  },
+  pillActiveGreen: {
+    borderColor: '#10B981',
+    backgroundColor: '#ECFDF5',
+  },
+  pillText: {
+    fontSize: 13,
+    color: colors.subtext,
+    fontWeight: '500',
+  },
+  pillTextActiveBlue: {
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
+  pillTextActiveGreen: {
+    color: '#10B981',
+    fontWeight: '600',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  modalClearButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  modalClearText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.subtext,
+  },
+  modalApplyButton: {
+    flex: 2,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+  },
+  modalApplyText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

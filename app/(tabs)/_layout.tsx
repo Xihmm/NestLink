@@ -1,6 +1,7 @@
 import { Tabs, useRouter } from 'expo-router';
 import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Text, TouchableOpacity, View } from 'react-native';
+import { useAuth } from '@/hooks/useAuth';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { Colors } from '@/constants/theme';
@@ -8,7 +9,9 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const router = useRouter();
+  const { user, signOut } = useAuth();
 
   return (
     <Tabs
@@ -16,6 +19,14 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: true,
         tabBarButton: HapticTab,
+        tabBarStyle: {
+          backgroundColor: isDark ? '#111827' : '#FFFFFF',
+          borderTopColor: isDark ? '#374151' : '#E5E7EB',
+        },
+        headerStyle: {
+          backgroundColor: isDark ? '#111827' : '#FFFFFF',
+        },
+        headerShadowVisible: false,
       }}>
       <Tabs.Screen
         name="index"
@@ -30,6 +41,40 @@ export default function TabLayout() {
             </View>
           ),
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>📋</Text>,
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => {
+                if (user?.isAnonymous) {
+                  Alert.alert(
+                    'You\'re browsing as guest',
+                    'Sign in to post and contact others.',
+                    [
+                      { text: 'Sign In / Sign Up', onPress: () => router.push('/auth') },
+                      { text: 'Cancel', style: 'cancel' },
+                    ]
+                  );
+                } else {
+                  Alert.alert(
+                    'Account',
+                    user?.email ?? undefined,
+                    [
+                      { text: 'Sign Out', style: 'destructive', onPress: signOut },
+                      { text: 'Cancel', style: 'cancel' },
+                    ]
+                  );
+                }
+              }}
+              style={{ position: 'absolute', right: 16 }}
+            >
+              <Text style={{
+                fontSize: 14,
+                fontWeight: '600',
+                color: user?.isAnonymous ? '#3B82F6' : '#6B7280',
+              }}>
+                {user?.isAnonymous ? 'Sign In' : 'Account'}
+              </Text>
+            </TouchableOpacity>
+          ),
         }}
       />
       <Tabs.Screen

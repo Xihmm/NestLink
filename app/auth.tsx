@@ -10,6 +10,7 @@ import {
   Platform,
   Alert,
   ScrollView,
+  useColorScheme,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { sendPasswordResetEmail } from 'firebase/auth';
@@ -36,6 +37,141 @@ function friendlyError(error: unknown): string {
   return 'Something went wrong. Please try again.';
 }
 
+const getColors = (isDark: boolean) => ({
+  bg: isDark ? '#0F172A' : '#EEF2F7',
+  card: isDark ? '#1E293B' : '#FFFFFF',
+  text: isDark ? '#F1F5F9' : '#1F2937',
+  subtext: isDark ? '#94A3B8' : '#6B7280',
+  border: isDark ? '#334155' : '#E5E7EB',
+  input: isDark ? '#1E293B' : '#FFFFFF',
+  tabsBg: isDark ? '#0F172A' : '#F3F4F6',
+});
+
+const createStyles = (colors: ReturnType<typeof getColors>) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.card,
+    },
+    keyboardView: {
+      flex: 1,
+    },
+    scroll: {
+      flexGrow: 1,
+      paddingHorizontal: 28,
+      paddingTop: 48,
+      paddingBottom: 40,
+    },
+    title: {
+      fontSize: 32,
+      fontWeight: '800',
+      color: '#1E40AF',
+      letterSpacing: -0.5,
+      textAlign: 'center',
+      marginBottom: 8,
+    },
+    subtitle: {
+      fontSize: 16,
+      color: colors.subtext,
+      textAlign: 'center',
+      marginBottom: 32,
+    },
+    tabs: {
+      flexDirection: 'row',
+      backgroundColor: colors.tabsBg,
+      borderRadius: 12,
+      padding: 4,
+      marginBottom: 28,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: 10,
+      borderRadius: 10,
+      alignItems: 'center',
+    },
+    tabActive: {
+      backgroundColor: colors.card,
+      shadowColor: '#000',
+      shadowOpacity: 0.06,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 1 },
+      elevation: 2,
+    },
+    tabText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: '#9CA3AF',
+    },
+    tabTextActive: {
+      color: '#1E40AF',
+    },
+    form: {
+      gap: 4,
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 6,
+      marginTop: 12,
+    },
+    input: {
+      backgroundColor: colors.input,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontSize: 16,
+      color: colors.text,
+    },
+    eduBanner: {
+      backgroundColor: '#EFF6FF',
+      borderRadius: 10,
+      padding: 12,
+      marginTop: 16,
+      borderWidth: 1,
+      borderColor: '#BFDBFE',
+    },
+    eduBannerText: {
+      fontSize: 13,
+      color: '#1E40AF',
+      fontWeight: '500',
+      textAlign: 'center',
+    },
+    submitButton: {
+      backgroundColor: '#3B82F6',
+      paddingVertical: 16,
+      borderRadius: 14,
+      alignItems: 'center',
+      marginTop: 24,
+      shadowColor: '#3B82F6',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    submitButtonDisabled: {
+      backgroundColor: '#93C5FD',
+      shadowOpacity: 0,
+      elevation: 0,
+    },
+    submitButtonText: {
+      color: '#FFFFFF',
+      fontSize: 17,
+      fontWeight: '700',
+    },
+    skipButton: {
+      marginTop: 20,
+      alignItems: 'center',
+    },
+    skipText: {
+      fontSize: 14,
+      color: '#9CA3AF',
+      fontWeight: '500',
+    },
+  });
+
 export default function AuthScreen() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('signup');
@@ -44,6 +180,11 @@ export default function AuthScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [eduDetected, setEduDetected] = useState(false);
+
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const colors = getColors(isDark);
+  const styles = createStyles(colors);
 
   const handleSubmit = async () => {
     if (loading) return;
@@ -113,13 +254,11 @@ export default function AuthScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          {/* Header */}
           <Text style={styles.title}>NestLink 🏠</Text>
           <Text style={styles.subtitle}>
             {tab === 'signup' ? 'Create your account' : 'Welcome back'}
           </Text>
 
-          {/* Tab switcher */}
           <View style={styles.tabs}>
             <TouchableOpacity
               style={[styles.tab, tab === 'signup' && styles.tabActive]}
@@ -135,7 +274,6 @@ export default function AuthScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Form */}
           <View style={styles.form}>
             <Text style={styles.label}>Email</Text>
             <TextInput
@@ -207,127 +345,3 @@ export default function AuthScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scroll: {
-    flexGrow: 1,
-    paddingHorizontal: 28,
-    paddingTop: 48,
-    paddingBottom: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#1E40AF',
-    letterSpacing: -0.5,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  tabs: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 28,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  tabActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
-  },
-  tabText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#9CA3AF',
-  },
-  tabTextActive: {
-    color: '#1E40AF',
-  },
-  form: {
-    gap: 4,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 6,
-    marginTop: 12,
-  },
-  input: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#111827',
-  },
-  eduBanner: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  eduBannerText: {
-    fontSize: 13,
-    color: '#1E40AF',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  submitButton: {
-    backgroundColor: '#3B82F6',
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginTop: 24,
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#93C5FD',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  skipButton: {
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  skipText: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    fontWeight: '500',
-  },
-});

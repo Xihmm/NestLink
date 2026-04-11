@@ -8,15 +8,108 @@ import {
   Alert,
   Image,
   Linking,
+  useColorScheme,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { initAnonymousUser } from '@/lib/authService';
 import pigImage from '@/assets/images/pig.png';
 
+const getColors = (isDark: boolean) => ({
+  bg: isDark ? '#0F172A' : '#EEF2F7',
+  card: isDark ? '#1E293B' : '#FFFFFF',
+  text: isDark ? '#F1F5F9' : '#1F2937',
+  subtext: isDark ? '#94A3B8' : '#6B7280',
+  border: isDark ? '#334155' : '#E5E7EB',
+  input: isDark ? '#1E293B' : '#FFFFFF',
+});
+
+const createStyles = (colors: ReturnType<typeof getColors>) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.card,
+    },
+    content: {
+      flex: 1,
+      paddingHorizontal: 32,
+      justifyContent: 'space-between',
+      paddingBottom: 40,
+    },
+    hero: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 0,
+    },
+    logoImage: {
+      width: 286,
+      height: 286,
+      marginTop: 24,
+    },
+    title: {
+      fontSize: 48,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: -1,
+    },
+    tagline: {
+      fontSize: 18,
+      color: colors.subtext,
+      textAlign: 'center',
+      lineHeight: 26,
+      maxWidth: 300,
+      marginTop: 16,
+    },
+    footer: {
+      gap: 16,
+      alignItems: 'center',
+    },
+    continueButton: {
+      backgroundColor: '#3B82F6',
+      paddingVertical: 18,
+      borderRadius: 14,
+      alignItems: 'center',
+      width: '100%',
+      shadowColor: '#3B82F6',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    continueButtonText: {
+      color: '#FFFFFF',
+      fontSize: 18,
+      fontWeight: '700',
+    },
+    disclaimer: {
+      fontSize: 12,
+      color: '#9CA3AF',
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+    guestLink: {
+      fontSize: 15,
+      color: colors.subtext,
+      fontWeight: '500',
+      textAlign: 'center',
+    },
+    contactLink: {
+      fontSize: 14,
+      color: '#2563EB',
+      textAlign: 'center',
+      fontWeight: '600',
+      textDecorationLine: 'underline',
+    },
+  });
+
 export default function LoginScreen() {
   const router = useRouter();
   const { user, loading } = useAuth();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const colors = getColors(isDark);
+  const styles = createStyles(colors);
 
   const handleContinue = async () => {
     if (loading) {
@@ -82,81 +175,3 @@ export default function LoginScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 32,
-    justifyContent: 'space-between',
-    paddingBottom: 40,
-  },
-  hero: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 0,
-  },
-  logoImage: {
-    width: 286,
-    height: 286,
-    marginTop: 24,
-  },
-  title: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: '#111827',
-    letterSpacing: -1,
-  },
-  tagline: {
-    fontSize: 18,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 26,
-    maxWidth: 300,
-    marginTop: 16,
-  },
-  footer: {
-    gap: 16,
-    alignItems: 'center',
-  },
-  continueButton: {
-    backgroundColor: '#3B82F6',
-    paddingVertical: 18,
-    borderRadius: 14,
-    alignItems: 'center',
-    width: '100%',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  continueButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  disclaimer: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  guestLink: {
-    fontSize: 15,
-    color: '#6B7280',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  contactLink: {
-    fontSize: 14,
-    color: '#2563EB',
-    textAlign: 'center',
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-  },
-});

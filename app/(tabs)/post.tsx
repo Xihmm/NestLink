@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  useColorScheme,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,10 +22,199 @@ import { Post, PostType, PostIntent } from '@/types/post';
 
 const MAX_IMAGES = 8;
 
+const getColors = (isDark: boolean) => ({
+  bg: isDark ? '#0F172A' : '#F9FAFB',
+  card: isDark ? '#1E293B' : '#FFFFFF',
+  text: isDark ? '#F1F5F9' : '#111827',
+  subtext: isDark ? '#94A3B8' : '#6B7280',
+  border: isDark ? '#334155' : '#E5E7EB',
+  input: isDark ? '#1E293B' : '#FFFFFF',
+  imagePlaceholder: isDark ? '#1E293B' : '#F3F4F6',
+});
+
+const createStyles = (colors: ReturnType<typeof getColors>) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.bg,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      padding: 16,
+    },
+    section: {
+      marginBottom: 20,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 8,
+    },
+    required: {
+      color: '#EF4444',
+    },
+    input: {
+      backgroundColor: colors.input,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: colors.text,
+    },
+    textArea: {
+      minHeight: 120,
+      paddingTop: 12,
+    },
+    contactHint: {
+      fontSize: 13,
+      color: colors.subtext,
+      marginBottom: 10,
+    },
+    contactInput: {
+      marginBottom: 10,
+    },
+    typeWarning: {
+      fontSize: 13,
+      color: '#F59E0B',
+      marginTop: 8,
+    },
+    typeGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+    },
+    typeButton: {
+      flex: 1,
+      minWidth: '45%',
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 10,
+      backgroundColor: colors.card,
+      borderWidth: 2,
+      borderColor: colors.border,
+      alignItems: 'center',
+    },
+    typeButtonActive: {
+      backgroundColor: '#3B82F6',
+      borderColor: '#3B82F6',
+    },
+    typeButtonText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.subtext,
+    },
+    typeButtonTextActive: {
+      color: '#FFFFFF',
+    },
+    intentRow: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    intentButton: {
+      flex: 1,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 10,
+      backgroundColor: colors.card,
+      borderWidth: 2,
+      borderColor: colors.border,
+      alignItems: 'center',
+    },
+    intentButtonActive: {
+      backgroundColor: '#EC4899',
+      borderColor: '#EC4899',
+    },
+    intentButtonText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.subtext,
+    },
+    intentButtonTextActive: {
+      color: '#FFFFFF',
+    },
+    dateRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    dateInput: {
+      backgroundColor: colors.input,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    dateSep: {
+      fontSize: 18,
+      color: '#9CA3AF',
+      fontWeight: '600',
+    },
+    dateError: {
+      fontSize: 13,
+      color: '#EF4444',
+      marginTop: 6,
+    },
+    imageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    imageThumbContainer: { position: 'relative' },
+    imageThumb: { width: 90, height: 90, borderRadius: 8, backgroundColor: colors.border },
+    removeImageButton: {
+      position: 'absolute', top: -6, right: -6,
+      backgroundColor: '#EF4444', borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center',
+    },
+    removeImageText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+    addImageButton: {
+      width: 90, height: 90, borderRadius: 8, backgroundColor: colors.imagePlaceholder,
+      borderWidth: 2, borderColor: colors.border, borderStyle: 'dashed',
+      alignItems: 'center', justifyContent: 'center', gap: 4,
+    },
+    addImageIcon: { fontSize: 24, color: '#9CA3AF' },
+    addImageText: { fontSize: 11, color: '#9CA3AF', fontWeight: '500' },
+    imageHint: { fontSize: 13, color: '#9CA3AF', marginTop: 8 },
+    submitButton: {
+      backgroundColor: '#3B82F6',
+      paddingVertical: 16,
+      borderRadius: 12,
+      alignItems: 'center',
+      marginTop: 8,
+      shadowColor: '#3B82F6',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    submitButtonDisabled: {
+      backgroundColor: '#93C5FD',
+      shadowOpacity: 0,
+      elevation: 0,
+    },
+    submitButtonText: {
+      color: '#FFFFFF',
+      fontSize: 18,
+      fontWeight: '700',
+    },
+    bottomPadding: {
+      height: 40,
+    },
+  });
+
 export default function CreatePostScreen() {
   const router = useRouter();
   const { addPost } = usePostsStore();
   const { user, loading: authLoading, isAnonymous } = useAuth();
+
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const colors = getColors(isDark);
+  const styles = createStyles(colors);
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -296,18 +486,18 @@ export default function CreatePostScreen() {
   };
 
   const handleSubmit = () => {
-    if (isAnonymous) {
+    if (user?.isAnonymous) {
       Alert.alert(
-        'Sign up to post',
-        'Create an account to manage your posts across devices.',
+        'Sign in to post',
+        'You need an account to post.',
         [
-          { text: 'Sign Up', onPress: () => router.push('/auth') },
-          { text: 'Post Anonymously', style: 'cancel', onPress: () => doSubmit() },
+          { text: 'Sign In', onPress: () => router.push('/auth') },
+          { text: 'Cancel', style: 'cancel' }
         ]
       );
-    } else {
-      doSubmit();
+      return;
     }
+    doSubmit();
   };
 
   const TypeButton = ({ value, label }: { value: PostType; label: string }) => (
@@ -353,6 +543,13 @@ export default function CreatePostScreen() {
           {typeWarning ? (
             <Text style={styles.typeWarning}>{typeWarning}</Text>
           ) : null}
+          {types.includes('SHORT_TERM') && types.includes('SUBLET') && (
+            <Text style={{ fontSize: 12, color: '#3B82F6', marginTop: 6, paddingHorizontal: 4 }}>
+              {intent === 'OFFER'
+                ? "💡 Tip: You're offering a short-term stay that can also transition into a full sublet — perfect for summer housing!"
+                : "💡 Tip: You're looking for a place that's available short-term, but open to a longer sublet arrangement too."}
+            </Text>
+          )}
         </View>
 
         {/* Intent Selection (hidden for QA and ROOMMATE-only) */}
@@ -366,12 +563,12 @@ export default function CreatePostScreen() {
               <IntentButton value="SEEK" label="I'm Seeking" />
             </View>
             {intent === 'OFFER' && (
-              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 6, paddingHorizontal: 4 }}>
+              <Text style={{ fontSize: 12, color: colors.subtext, marginTop: 6, paddingHorizontal: 4 }}>
                 🏠 You have a place or spot to offer — sublet, room, short-term stay, etc.
               </Text>
             )}
             {intent === 'SEEK' && (
-              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 6, paddingHorizontal: 4 }}>
+              <Text style={{ fontSize: 12, color: colors.subtext, marginTop: 6, paddingHorizontal: 4 }}>
                 🔍 You're looking for a place, a room, or a roommate.
               </Text>
             )}
@@ -453,7 +650,7 @@ export default function CreatePostScreen() {
               }}
               placeholderTextColor="#9CA3AF"
             />
-            <Text style={{ color: '#6B7280', fontSize: 13 }}>$/mo</Text>
+            <Text style={{ color: colors.subtext, fontSize: 13 }}>$/mo</Text>
           </View>
         </View>
 
@@ -466,13 +663,13 @@ export default function CreatePostScreen() {
             >
               <View style={{
                 width: 22, height: 22, borderRadius: 4,
-                borderWidth: 1.5, borderColor: negotiable ? '#3B82F6' : '#D1D5DB',
-                backgroundColor: negotiable ? '#3B82F6' : 'white',
+                borderWidth: 1.5, borderColor: negotiable ? '#3B82F6' : colors.border,
+                backgroundColor: negotiable ? '#3B82F6' : colors.card,
                 alignItems: 'center', justifyContent: 'center',
               }}>
                 {negotiable && <Text style={{ color: 'white', fontSize: 13 }}>✓</Text>}
               </View>
-              <Text style={{ fontSize: 14, color: '#374151' }}>{'🔪  Open to negotiation'}</Text>
+              <Text style={{ fontSize: 14, color: colors.text }}>{'🔪  Open to negotiation'}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -639,176 +836,3 @@ export default function CreatePostScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-  },
-  section: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  required: {
-    color: '#EF4444',
-  },
-  input: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#111827',
-  },
-  textArea: {
-    minHeight: 120,
-    paddingTop: 12,
-  },
-  contactHint: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 10,
-  },
-  contactInput: {
-    marginBottom: 10,
-  },
-  typeWarning: {
-    fontSize: 13,
-    color: '#F59E0B',
-    marginTop: 8,
-  },
-  typeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  typeButton: {
-    flex: 1,
-    minWidth: '45%',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    alignItems: 'center',
-  },
-  typeButtonActive: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
-  },
-  typeButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  typeButtonTextActive: {
-    color: '#FFFFFF',
-  },
-  intentRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  intentButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    alignItems: 'center',
-  },
-  intentButtonActive: {
-    backgroundColor: '#EC4899',
-    borderColor: '#EC4899',
-  },
-  intentButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  intentButtonTextActive: {
-    color: '#FFFFFF',
-  },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  dateInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#111827',
-    textAlign: 'center',
-  },
-  dateSep: {
-    fontSize: 18,
-    color: '#9CA3AF',
-    fontWeight: '600',
-  },
-  dateError: {
-    fontSize: 13,
-    color: '#EF4444',
-    marginTop: 6,
-  },
-  imageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  imageThumbContainer: { position: 'relative' },
-  imageThumb: { width: 90, height: 90, borderRadius: 8, backgroundColor: '#E5E7EB' },
-  removeImageButton: {
-    position: 'absolute', top: -6, right: -6,
-    backgroundColor: '#EF4444', borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center',
-  },
-  removeImageText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
-  addImageButton: {
-    width: 90, height: 90, borderRadius: 8, backgroundColor: '#F3F4F6',
-    borderWidth: 2, borderColor: '#E5E7EB', borderStyle: 'dashed',
-    alignItems: 'center', justifyContent: 'center', gap: 4,
-  },
-  addImageIcon: { fontSize: 24, color: '#9CA3AF' },
-  addImageText: { fontSize: 11, color: '#9CA3AF', fontWeight: '500' },
-  imageHint: { fontSize: 13, color: '#9CA3AF', marginTop: 8 },
-  submitButton: {
-    backgroundColor: '#3B82F6',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 8,
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#93C5FD',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  bottomPadding: {
-    height: 40,
-  },
-});

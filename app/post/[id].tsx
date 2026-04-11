@@ -10,6 +10,8 @@ import {
   Modal,
   Pressable,
   Dimensions,
+  Share,
+  useColorScheme,
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -17,8 +19,21 @@ import { usePostsStore } from '@/hooks/usePostsStore';
 import { useAuth } from '@/hooks/useAuth';
 import { PostType, PostIntent } from '@/types/post';
 
+const getColors = (isDark: boolean) => ({
+  bg: isDark ? '#0F172A' : '#EEF2F7',
+  card: isDark ? '#1E293B' : '#FFFFFF',
+  text: isDark ? '#F1F5F9' : '#1F2937',
+  subtext: isDark ? '#94A3B8' : '#6B7280',
+  border: isDark ? '#334155' : '#E5E7EB',
+  input: isDark ? '#1E293B' : '#FFFFFF',
+});
+
 export default function PostDetailScreen() {
   const screenWidth = Dimensions.get('window').width;
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const colors = getColors(isDark);
+  const styles = createStyles(colors);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getPostById, updatePostStatus, deletePost, isPostSaved, toggleSavedPost } = usePostsStore();
   const { user: currentUser } = useAuth();
@@ -169,6 +184,25 @@ export default function PostDetailScreen() {
           </Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          onPress={async () => {
+            await Share.share({
+              message: `🏠 NestLink - UR Housing Board\n\n${post.title}\n\n${post.body ? post.body + '\n\n' : ''}${post.location ? '📍 ' + post.location + '\n' : ''}${post.budgetMin || post.budgetMax ? '💰 ' + (post.budgetMin ? '$' + post.budgetMin : '') + (post.budgetMax ? ' - $' + post.budgetMax : '') + '/mo\n' : ''}${post.startDate && post.endDate ? '📅 ' + post.startDate + ' - ' + post.endDate + '\n' : ''}\nFind more housing posts on NestLink 🐷`,
+              title: post.title,
+            });
+          }}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 4,
+            paddingHorizontal: 12, paddingVertical: 6,
+            borderRadius: 20, borderWidth: 1,
+            borderColor: '#E5E7EB', backgroundColor: 'white',
+            marginTop: 8,
+            alignSelf: 'flex-start',
+          }}
+        >
+          <Text style={{ fontSize: 13, color: '#6B7280', fontWeight: '500' }}>📤 Share</Text>
+        </TouchableOpacity>
+
         {/* Divider */}
         <View style={styles.divider} />
 
@@ -249,7 +283,20 @@ export default function PostDetailScreen() {
             <Text style={styles.sectionTitle}>Contact</Text>
             <TouchableOpacity
               style={styles.showContactButton}
-              onPress={() => setShowContact(!showContact)}
+              onPress={() => {
+                if (currentUser?.isAnonymous) {
+                  Alert.alert(
+                    'Sign in to view contact info',
+                    'Create a free account to contact this person.',
+                    [
+                      { text: 'Sign In', onPress: () => router.push('/auth') },
+                      { text: 'Cancel', style: 'cancel' }
+                    ]
+                  );
+                  return;
+                }
+                setShowContact(!showContact);
+              }}
             >
               <Text style={styles.showContactButtonText}>
                 {showContact ? 'Hide Contact Info' : 'Show Contact Info'}
@@ -417,10 +464,10 @@ export default function PostDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof getColors>) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.bg,
   },
   scrollView: {
     flex: 1,
@@ -456,18 +503,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#111827',
+    color: colors.text,
     marginBottom: 8,
     lineHeight: 36,
   },
   author: {
     fontSize: 14,
-    color: '#6B7280',
+    color: colors.subtext,
     fontStyle: 'italic',
   },
   savePostButton: {
     alignSelf: 'flex-start',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: '#CBD5E1',
     borderRadius: 999,
@@ -481,14 +528,14 @@ const styles = StyleSheet.create({
   savePostButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: colors.text,
   },
   savePostButtonTextActive: {
     color: '#1D4ED8',
   },
   divider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border,
     marginVertical: 20,
   },
   imagesSection: {
@@ -502,7 +549,7 @@ const styles = StyleSheet.create({
     width: 260,
     height: 180,
     borderRadius: 12,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border,
   },
   previewOverlay: {
     flex: 1,
@@ -538,17 +585,17 @@ const styles = StyleSheet.create({
     height: '78%',
   },
   detailsSection: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: colors.text,
     marginBottom: 16,
   },
   detailRow: {
@@ -566,34 +613,34 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 13,
-    color: '#6B7280',
+    color: colors.subtext,
     marginBottom: 2,
     fontWeight: '500',
   },
   detailValue: {
     fontSize: 16,
-    color: '#111827',
+    color: colors.text,
     fontWeight: '600',
   },
   descriptionSection: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   description: {
     fontSize: 16,
-    color: '#374151',
+    color: colors.text,
     lineHeight: 24,
   },
   contactSection: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 16,
     marginTop: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.border,
   },
   showContactButton: {
     backgroundColor: '#3B82F6',
@@ -622,13 +669,13 @@ const styles = StyleSheet.create({
   contactLabel: {
     width: 60,
     fontSize: 14,
-    color: '#6B7280',
+    color: colors.subtext,
     fontWeight: '500',
   },
   contactValue: {
     flex: 1,
     fontSize: 16,
-    color: '#111827',
+    color: colors.text,
     fontWeight: '600',
   },
   copyButton: {
@@ -653,7 +700,7 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#6B7280',
+    color: colors.subtext,
     marginBottom: 8,
   },
   errorSubtext: {
