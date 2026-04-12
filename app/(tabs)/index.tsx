@@ -307,6 +307,19 @@ export default function FeedScreen() {
             </View>
           )}
 
+          {item.isSample && (
+            <View style={{
+              backgroundColor: '#F3F4F6',
+              borderRadius: 4,
+              paddingHorizontal: 6,
+              paddingVertical: 2,
+              alignSelf: 'flex-start',
+              marginTop: 4,
+            }}>
+              <Text style={{ fontSize: 10, color: '#9CA3AF' }}>Sample</Text>
+            </View>
+          )}
+
           <View style={styles.cardFooter}>
             <Text style={styles.cardTime}>{getTimeAgo(item.createdAt)}</Text>
             <TouchableOpacity
