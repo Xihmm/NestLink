@@ -16,6 +16,8 @@ export interface Post {
   endDate?: string; // ISO string
   createdAt: number; // timestamp
   authorName?: string; // default "Anonymous"
+  authorUsername?: string;
+  isAnonymousAuthor?: boolean;
   wechatId?: string;
   phone?: string;
   email?: string;
@@ -26,5 +28,4 @@ export interface Post {
   imageUrls?: string[];
   negotiable?: boolean;
 }
-
 

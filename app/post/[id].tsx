@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -12,12 +12,27 @@ import {
   Dimensions,
   Share,
   useColorScheme,
+  TextInput,
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { usePostsStore } from '@/hooks/usePostsStore';
 import { useAuth } from '@/hooks/useAuth';
+import { POST_TYPE_STYLES } from '@/constants/tag-styles';
+import { db } from '@/lib/firebase';
 import { PostType, PostIntent } from '@/types/post';
+
+type PostComment = {
+  id: string;
+  text: string;
+  authorId?: string;
+  authorUsername?: string;
+  authorName?: string;
+  authorEmail?: string;
+  createdAt?: number;
+};
 
 const getColors = (isDark: boolean) => ({
   bg: isDark ? '#0F172A' : '#EEF2F7',
@@ -26,6 +41,9 @@ const getColors = (isDark: boolean) => ({
   subtext: isDark ? '#94A3B8' : '#6B7280',
   border: isDark ? '#334155' : '#E5E7EB',
   input: isDark ? '#1E293B' : '#FFFFFF',
+  commentSurface: isDark ? '#182334' : '#F8FAFC',
+  commentBorder: isDark ? '#253246' : '#E2E8F0',
+  composerSurface: isDark ? '#162131' : '#FFFFFF',
 });
 
 export default function PostDetailScreen() {
@@ -36,26 +54,19 @@ export default function PostDetailScreen() {
   const styles = createStyles(colors);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getPostById, updatePostStatus, deletePost, isPostSaved, toggleSavedPost } = usePostsStore();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, username } = useAuth();
   const router = useRouter();
   const [showContact, setShowContact] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
+  const [comments, setComments] = useState<PostComment[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
 
   const post = getPostById(id);
 
-  if (!post) {
-    return (
-      <View style={styles.container}>
-        <Stack.Screen options={{ title: 'Post Not Found' }} />
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Post not found</Text>
-          <Text style={styles.errorSubtext}>The post you're looking for does not exist.</Text>
-        </View>
-      </View>
-    );
-  }
+  const isQAPost = post?.types.includes('QA') ?? false;
 
   const getTimeAgo = (timestamp: number) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -77,15 +88,6 @@ export default function PostDetailScreen() {
     });
   };
 
-  const getTypeBadgeColor = (type: PostType) => {
-    switch (type) {
-      case 'ROOMMATE': return '#3B82F6';
-      case 'SUBLET': return '#10B981';
-      case 'SHORT_TERM': return '#F59E0B';
-      case 'QA': return '#8B5CF6';
-    }
-  };
-
   const getIntentBadgeColor = (intent: PostIntent) => {
     if (intent === 'OFFER') return '#EC4899';
     if (intent === 'SEEK') return '#6366F1';
@@ -96,6 +98,104 @@ export default function PostDetailScreen() {
     await Clipboard.setStringAsync(text);
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  useEffect(() => {
+    if (!post?.id || !isQAPost) {
+      setComments([]);
+      return;
+    }
+
+    const commentsQuery = query(
+      collection(db, 'posts', post.id, 'comments'),
+      orderBy('createdAt', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(
+      commentsQuery,
+      (snapshot) => {
+        const nextComments = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...(doc.data() as Omit<PostComment, 'id'>),
+        }));
+        setComments(nextComments);
+      },
+      (error) => {
+        console.error('Failed to subscribe to comments:', error);
+        setComments([]);
+      }
+    );
+
+    return unsubscribe;
+  }, [isQAPost, post?.id]);
+
+  if (!post) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{ title: 'Post Not Found' }} />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Post not found</Text>
+          <Text style={styles.errorSubtext}>The post you're looking for does not exist.</Text>
+        </View>
+      </View>
+    );
+  }
+
+  const handleSubmitComment = async () => {
+    const trimmed = commentText.trim();
+    if (!trimmed) return;
+
+    if (!currentUser || currentUser.isAnonymous) {
+      Alert.alert(
+        'Sign in to comment',
+        'Create a free account to join the conversation.',
+        [
+          { text: 'Sign In', onPress: () => router.push('/auth') },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+      return;
+    }
+
+    setSubmittingComment(true);
+    try {
+      await addDoc(collection(db, 'posts', post.id, 'comments'), {
+        text: trimmed,
+        authorId: currentUser.uid,
+        authorUsername: username || currentUser.email?.split('@')[0] || 'Anonymous',
+        authorName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Anonymous',
+        authorEmail: currentUser.email || null,
+        createdAt: Date.now(),
+      });
+      setCommentText('');
+    } catch (error) {
+      console.error('Failed to submit comment:', error);
+      Alert.alert('Comment failed', 'We could not post your comment. Please try again.');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    Alert.alert(
+      'Delete this comment?',
+      '',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, 'posts', post.id, 'comments', commentId));
+            } catch (error) {
+              console.error('Failed to delete comment:', error);
+              Alert.alert('Delete failed', 'We could not delete this comment. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const openPreview = (index: number) => {
@@ -117,11 +217,28 @@ export default function PostDetailScreen() {
   };
 
   const isOwner = !post.isSample && currentUser?.uid != null && currentUser.uid === post.authorId;
+  const displayPostIdentity = () => {
+    const isAnonymousPost = post.isAnonymousAuthor
+      ?? (!(post.authorUsername || (post.authorName && post.authorName !== 'Anonymous')));
+    if (isAnonymousPost) return 'Posted by Anonymous';
+
+    const usernameLabel = post.authorUsername || post.authorName || 'Anonymous';
+    if (post.authorName && post.authorName !== 'Anonymous' && post.authorName !== usernameLabel) {
+      return `Posted by ${usernameLabel} · ${post.authorName}`;
+    }
+    return `Posted by ${usernameLabel}`;
+  };
 
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Post Details' }} />
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        enableOnAndroid
+        keyboardShouldPersistTaps="handled"
+        extraScrollHeight={20}
+      >
         {/* Status Banner */}
         {post.status === 'FOUND' && (
           <View style={[styles.statusBanner, { backgroundColor: '#D1FAE5' }]}>
@@ -138,8 +255,8 @@ export default function PostDetailScreen() {
         <View style={styles.header}>
           <View style={styles.badges}>
             {post.types.map((t) => (
-              <View key={t} style={[styles.badge, { backgroundColor: getTypeBadgeColor(t) }]}>
-                <Text style={styles.badgeText}>{t}</Text>
+              <View key={t} style={[styles.badge, { backgroundColor: POST_TYPE_STYLES[t].backgroundColor }]}>
+                <Text style={[styles.badgeText, { color: POST_TYPE_STYLES[t].color }]}>{t}</Text>
               </View>
             ))}
             {post.intent && (
@@ -156,7 +273,7 @@ export default function PostDetailScreen() {
 
         {/* Author */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-          <Text style={styles.author}>Posted by {post.authorName || 'Anonymous'}</Text>
+          <Text style={styles.author}>{displayPostIdentity()}</Text>
           {post.authorEmail?.toLowerCase().endsWith('.edu') && (
             <Text style={{ fontSize: 11, color: '#3B82F6' }}>🎓 UR Verified</Text>
           )}
@@ -354,6 +471,72 @@ export default function PostDetailScreen() {
           </View>
         )}
 
+        {isQAPost && (
+          <View style={styles.commentsSection}>
+            <Text style={styles.sectionTitle}>Comments</Text>
+            {comments.length === 0 ? (
+              <Text style={styles.commentsEmpty}>No comments yet. Start the conversation.</Text>
+            ) : (
+              <View style={styles.commentsList}>
+                {comments.map((comment) => {
+                  const isEdu = comment.authorEmail?.toLowerCase().endsWith('.rochester.edu');
+                  const isCommentOwner = currentUser?.uid != null && currentUser.uid === comment.authorId;
+                  const commentDisplayName =
+                    comment.authorUsername ||
+                    comment.authorName ||
+                    comment.authorEmail?.split('@')[0] ||
+                    'Anonymous';
+                  return (
+                    <View key={comment.id} style={styles.commentCard}>
+                      <View style={styles.commentHeaderTop}>
+                        <View style={styles.commentAuthorRow}>
+                          <Text style={styles.commentAuthor}>{commentDisplayName}</Text>
+                          {isEdu && <Text style={styles.commentBadge}>🎓</Text>}
+                        </View>
+                        <View style={styles.commentMetaRow}>
+                          <Text style={styles.commentTime}>
+                            {comment.createdAt ? getTimeAgo(comment.createdAt) : 'Just now'}
+                          </Text>
+                          {isCommentOwner && (
+                            <TouchableOpacity onPress={() => handleDeleteComment(comment.id)}>
+                              <Text style={styles.commentDeleteText}>Delete</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                      <Text style={styles.commentText}>{comment.text}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            <View style={styles.commentComposer}>
+              <TextInput
+                style={styles.commentInput}
+                placeholder="Add a comment..."
+                placeholderTextColor="#9CA3AF"
+                value={commentText}
+                onChangeText={setCommentText}
+                multiline
+                editable={!submittingComment}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.commentSendButton,
+                  (!commentText.trim() || submittingComment) && styles.commentSendButtonDisabled,
+                ]}
+                onPress={handleSubmitComment}
+                disabled={!commentText.trim() || submittingComment}
+              >
+                <Text style={styles.commentSendButtonText}>
+                  {submittingComment ? 'Sending...' : 'Send'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Action Buttons — only shown to the post owner */}
         {isOwner && (() => {
           const isHousing = post.types.includes('SUBLET') || post.types.includes('SHORT_TERM');
@@ -427,7 +610,7 @@ export default function PostDetailScreen() {
         })()}
 
         <View style={styles.bottomPadding} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {post.imageUrls && post.imageUrls.length > 0 && (
         <Modal
@@ -474,6 +657,7 @@ const createStyles = (colors: ReturnType<typeof getColors>) => StyleSheet.create
   },
   content: {
     padding: 16,
+    flexGrow: 1,
   },
   header: {
     flexDirection: 'row',
@@ -657,6 +841,106 @@ const createStyles = (colors: ReturnType<typeof getColors>) => StyleSheet.create
   contactDetails: {
     marginTop: 14,
     gap: 10,
+  },
+  commentsSection: {
+    paddingTop: 14,
+    marginTop: 16,
+  },
+  commentsList: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  commentsEmpty: {
+    fontSize: 14,
+    color: colors.subtext,
+    marginBottom: 12,
+  },
+  commentCard: {
+    borderWidth: 1,
+    borderColor: colors.commentBorder,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.commentSurface,
+  },
+  commentHeaderTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 6,
+  },
+  commentAuthorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flex: 1,
+  },
+  commentAuthor: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  commentBadge: {
+    fontSize: 11,
+    opacity: 0.9,
+  },
+  commentMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  commentTime: {
+    fontSize: 11,
+    color: colors.subtext,
+  },
+  commentDeleteText: {
+    fontSize: 11,
+    color: '#EF4444',
+    fontWeight: '600',
+  },
+  commentText: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 21,
+  },
+  commentComposer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colors.commentBorder,
+    backgroundColor: colors.composerSurface,
+    borderRadius: 14,
+    padding: 10,
+  },
+  commentInput: {
+    flex: 1,
+    minHeight: 44,
+    maxHeight: 120,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: colors.text,
+    textAlignVertical: 'top',
+  },
+  commentSendButton: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 15,
+    paddingVertical: 11,
+    borderRadius: 11,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  commentSendButtonDisabled: {
+    backgroundColor: '#93C5FD',
+  },
+  commentSendButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   contactRow: {
     flexDirection: 'row',

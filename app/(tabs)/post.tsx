@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,15 +12,41 @@ import {
   Image,
   useColorScheme,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import Toast from 'react-native-toast-message';
 import { storage } from '@/lib/firebase';
 import { usePostsStore } from '@/hooks/usePostsStore';
 import { useAuth } from '@/hooks/useAuth';
 import { Post, PostType, PostIntent } from '@/types/post';
 
 const MAX_IMAGES = 8;
+const POST_DRAFT_KEY = 'post_draft';
+
+type PostDraft = {
+  title: string;
+  body: string;
+  types: PostType[];
+  intent: PostIntent;
+  location: string;
+  budgetMin: string;
+  budgetMax: string;
+  startMM: string;
+  startDD: string;
+  startYYYY: string;
+  endMM: string;
+  endDD: string;
+  endYYYY: string;
+  authorName: string;
+  wechatId: string;
+  phone: string;
+  email: string;
+  negotiable: boolean;
+  imageUris: string[];
+};
 
 const getColors = (isDark: boolean) => ({
   bg: isDark ? '#0F172A' : '#F9FAFB',
@@ -82,6 +108,13 @@ const createStyles = (colors: ReturnType<typeof getColors>) =>
       fontSize: 13,
       color: '#F59E0B',
       marginTop: 8,
+    },
+    typeHint: {
+      fontSize: 12,
+      color: colors.subtext,
+      marginTop: 6,
+      paddingHorizontal: 4,
+      lineHeight: 16,
     },
     typeGrid: {
       flexDirection: 'row',
@@ -201,6 +234,20 @@ const createStyles = (colors: ReturnType<typeof getColors>) =>
       fontSize: 18,
       fontWeight: '700',
     },
+    draftButton: {
+      marginTop: 10,
+      paddingVertical: 14,
+      borderRadius: 12,
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    draftButtonText: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: '600',
+    },
     bottomPadding: {
       height: 40,
     },
@@ -208,8 +255,10 @@ const createStyles = (colors: ReturnType<typeof getColors>) =>
 
 export default function CreatePostScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const route = useRoute();
   const { addPost } = usePostsStore();
-  const { user, loading: authLoading, isAnonymous } = useAuth();
+  const { user, loading: authLoading, isAnonymous, username } = useAuth();
 
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -239,14 +288,399 @@ export default function CreatePostScreen() {
   const [negotiable, setNegotiable] = useState(false);
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const hasSubmittedRef = useRef(false);
+  const isLeavingRef = useRef(false);
+  const pendingDraftRef = useRef<PostDraft | null>(null);
 
   const isQA = types.includes('QA');
+  const isQAOnly = types.includes('QA') && types.length === 1;
   const isRoommateOnly = types.length === 1 && types.includes('ROOMMATE');
   const needsDates = types.includes('SUBLET') || types.includes('SHORT_TERM');
 
+  useEffect(() => {
+    console.log('[PostDraft] mount', { routeKey: route.key, routeName: route.name });
+    return () => {
+      console.log('[PostDraft] unmount', { routeKey: route.key, routeName: route.name });
+    };
+  }, [route.key, route.name]);
+
+  const buildDraft = useCallback(
+    (): PostDraft => ({
+      title,
+      body,
+      types,
+      intent,
+      location,
+      budgetMin,
+      budgetMax,
+      startMM,
+      startDD,
+      startYYYY,
+      endMM,
+      endDD,
+      endYYYY,
+      authorName,
+      wechatId,
+      phone,
+      email,
+      negotiable,
+      imageUris,
+    }),
+    [
+      title,
+      body,
+      types,
+      intent,
+      location,
+      budgetMin,
+      budgetMax,
+      startMM,
+      startDD,
+      startYYYY,
+      endMM,
+      endDD,
+      endYYYY,
+      authorName,
+      wechatId,
+      phone,
+      email,
+      negotiable,
+      imageUris,
+    ]
+  );
+
+  const resetForm = useCallback(() => {
+    setTitle('');
+    setBody('');
+    setTypes([]);
+    setTypeWarning('');
+    setIntent('OFFER');
+    setLocation('');
+    setBudgetMin('');
+    setBudgetMax('');
+    setStartMM('');
+    setStartDD('');
+    setStartYYYY('');
+    setEndMM('');
+    setEndDD('');
+    setEndYYYY('');
+    setStartDateError('');
+    setEndDateError('');
+    setAuthorName('');
+    setWechatId('');
+    setPhone('');
+    setEmail('');
+    setNegotiable(false);
+    setImageUris([]);
+  }, []);
+
+  const restoreDraft = (draft: PostDraft) => {
+    setTitle(draft.title ?? '');
+    setBody(draft.body ?? '');
+    setTypes(draft.types ?? []);
+    setTypeWarning('');
+    setIntent(draft.intent ?? 'OFFER');
+    setLocation(draft.location ?? '');
+    setBudgetMin(draft.budgetMin ?? '');
+    setBudgetMax(draft.budgetMax ?? '');
+    setStartMM(draft.startMM ?? '');
+    setStartDD(draft.startDD ?? '');
+    setStartYYYY(draft.startYYYY ?? '');
+    setEndMM(draft.endMM ?? '');
+    setEndDD(draft.endDD ?? '');
+    setEndYYYY(draft.endYYYY ?? '');
+    setStartDateError('');
+    setEndDateError('');
+    setAuthorName(draft.authorName ?? '');
+    setWechatId(draft.wechatId ?? '');
+    setPhone(draft.phone ?? '');
+    setEmail(draft.email ?? '');
+    setNegotiable(draft.negotiable ?? false);
+    setImageUris(draft.imageUris ?? []);
+  };
+
+  const promptToRestoreDraft = useCallback(async () => {
+    console.log('[PostDraft] draft load check start');
+    resetForm();
+    console.log('[PostDraft] form reset before draft decision');
+
+    try {
+      const rawDraft = await AsyncStorage.getItem(POST_DRAFT_KEY);
+      if (!rawDraft) {
+        pendingDraftRef.current = null;
+        console.log('[PostDraft] no saved draft found');
+        return;
+      }
+
+      const draft = JSON.parse(rawDraft) as PostDraft;
+      pendingDraftRef.current = draft;
+      console.log('[PostDraft] saved draft found; showing restore prompt', {
+        hasTitle: Boolean(draft.title),
+        typeCount: draft.types.length,
+        imageCount: draft.imageUris.length,
+      });
+
+      Alert.alert(
+        'You have a saved draft. Continue editing?',
+        '',
+        [
+          {
+            text: 'Discard',
+            onPress: () => {
+              console.log('[PostDraft] restore prompt action: discard tapped');
+              Alert.alert(
+                'Are you sure you want to discard this draft?',
+                '',
+                [
+                  {
+                    text: 'Cancel',
+                    style: 'cancel',
+                    onPress: () => {
+                      console.log('[PostDraft] restore discard confirmation: cancel');
+                    },
+                  },
+                  {
+                    text: 'Discard',
+                    style: 'destructive',
+                    onPress: async () => {
+                      console.log('[PostDraft] restore discard confirmation: discard');
+                      pendingDraftRef.current = null;
+                      await AsyncStorage.removeItem(POST_DRAFT_KEY);
+                    },
+                  },
+                ],
+                { cancelable: true }
+              );
+            },
+          },
+          {
+            text: 'Continue',
+            onPress: () => {
+              console.log('[PostDraft] restore prompt action: continue');
+              const pendingDraft = pendingDraftRef.current;
+              pendingDraftRef.current = null;
+              if (pendingDraft) {
+                restoreDraft(pendingDraft);
+                console.log('[PostDraft] draft restored after explicit continue');
+              }
+            },
+          },
+        ],
+        { cancelable: false }
+      );
+    } catch (error) {
+      pendingDraftRef.current = null;
+      console.error('Failed to load saved draft:', error);
+    }
+  }, [resetForm]);
+
+  const confirmLeave = useCallback(
+    (reason: string, proceed: () => void) => {
+      console.log('[PostDraft] leave prompt shown', {
+        reason,
+        isDirty,
+        submitting,
+        hasSubmitted: hasSubmittedRef.current,
+      });
+
+      Alert.alert(
+        'Do you want to save this as a draft?',
+        '',
+        [
+          {
+            text: 'Save as Draft',
+            onPress: async () => {
+              console.log('[PostDraft] leave prompt action: save draft', { reason });
+              try {
+                await AsyncStorage.setItem(POST_DRAFT_KEY, JSON.stringify(buildDraft()));
+              } catch (error) {
+                console.error('Failed to save draft on exit:', error);
+              } finally {
+                isLeavingRef.current = true;
+                proceed();
+              }
+            },
+          },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: async () => {
+              console.log('[PostDraft] leave prompt action: discard', { reason });
+              try {
+                await AsyncStorage.removeItem(POST_DRAFT_KEY);
+                resetForm();
+              } catch (error) {
+                console.error('Failed to discard draft on exit:', error);
+              } finally {
+                isLeavingRef.current = true;
+                proceed();
+              }
+            },
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => {
+              console.log('[PostDraft] leave prompt action: cancel', { reason });
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+    },
+    [buildDraft, isDirty, resetForm, submitting]
+  );
+
+  const isDirty = useMemo(() => {
+    return Boolean(
+      title.trim() ||
+      body.trim() ||
+      types.length > 0 ||
+      location.trim() ||
+      budgetMin.trim() ||
+      budgetMax.trim() ||
+      startMM.trim() ||
+      startDD.trim() ||
+      startYYYY.trim() ||
+      endMM.trim() ||
+      endDD.trim() ||
+      endYYYY.trim() ||
+      authorName.trim() ||
+      wechatId.trim() ||
+      phone.trim() ||
+      email.trim() ||
+      negotiable ||
+      imageUris.length > 0
+    );
+  }, [
+    title,
+    body,
+    types,
+    location,
+    budgetMin,
+    budgetMax,
+    startMM,
+    startDD,
+    startYYYY,
+    endMM,
+    endDD,
+    endYYYY,
+    authorName,
+    wechatId,
+    phone,
+    email,
+    negotiable,
+    imageUris,
+  ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      isLeavingRef.current = false;
+      console.log('[PostDraft] focus', {
+        isLeaving: isLeavingRef.current,
+      });
+      console.log('[PostDraft] running draft check on focus');
+      promptToRestoreDraft();
+      return () => {
+        console.log('[PostDraft] blur');
+      };
+    }, [promptToRestoreDraft])
+  );
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+      console.log('[PostDraft] beforeRemove fired', {
+        actionType: event.data.action.type,
+        source: event.target,
+        isDirty,
+        submitting,
+        hasSubmitted: hasSubmittedRef.current,
+        isLeaving: isLeavingRef.current,
+      });
+      if (!isDirty || submitting || hasSubmittedRef.current || isLeavingRef.current) {
+        return;
+      }
+
+      event.preventDefault();
+      confirmLeave('beforeRemove', () => navigation.dispatch(event.data.action));
+    });
+
+    return unsubscribe;
+  }, [navigation, isDirty, submitting, confirmLeave]);
+
+  useEffect(() => {
+    const parentNavigation = navigation.getParent();
+    if (!parentNavigation) {
+      return;
+    }
+
+    const unsubscribe = parentNavigation.addListener('tabPress', (event) => {
+      const parentState = parentNavigation.getState();
+      const postRoute = parentState.routes.find((r) => r.name === 'post');
+      const targetRoute = parentState.routes.find((r) => r.key === event.target);
+
+      console.log('[PostDraft] parent tabPress fired', {
+        targetKey: event.target,
+        targetName: targetRoute?.name,
+        postRouteKey: postRoute?.key,
+        isDirty,
+        submitting,
+        hasSubmitted: hasSubmittedRef.current,
+      });
+
+      if (!postRoute || event.target === postRoute.key) {
+        return;
+      }
+
+      if (!isDirty || submitting || hasSubmittedRef.current || isLeavingRef.current) {
+        return;
+      }
+
+      event.preventDefault();
+      confirmLeave('tabPress', () => {
+        if (targetRoute) {
+          parentNavigation.navigate(targetRoute.name as never);
+        }
+      });
+    });
+
+    return unsubscribe;
+  }, [navigation, isDirty, submitting, confirmLeave]);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => {
+            console.log('[PostDraft] header back pressed', {
+              isDirty,
+              submitting,
+              hasSubmitted: hasSubmittedRef.current,
+              isLeaving: isLeavingRef.current,
+            });
+
+            if (!isDirty || submitting || hasSubmittedRef.current || isLeavingRef.current) {
+              router.back();
+              return;
+            }
+
+            confirmLeave('headerBack', () => router.back());
+          }}
+          style={{ paddingHorizontal: 16, paddingVertical: 8 }}
+        >
+          <Text style={{ fontSize: 16, color: '#3B82F6' }}>‹ Back</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, router, isDirty, submitting, confirmLeave]);
+
   const toggleType = (value: PostType) => {
     let next: PostType[];
-    if (value === 'QA') {
+    if (value === 'ROOMMATE') {
+      next = ['ROOMMATE'];
+    } else if (types.includes('ROOMMATE')) {
+      next = [value];
+    } else if (value === 'QA') {
       // QA always alone — selecting it clears everything else
       next = ['QA'];
     } else if (types.includes('QA')) {
@@ -368,7 +802,7 @@ export default function CreatePostScreen() {
       Alert.alert('Invalid Budget', 'Min budget cannot be greater than max');
       return false;
     }
-    if (!wechatId.trim() && !phone.trim() && !email.trim()) {
+    if (!isQAOnly && !wechatId.trim() && !phone.trim() && !email.trim()) {
       Alert.alert('Error', 'Please provide at least one contact method');
       return false;
     }
@@ -425,7 +859,9 @@ export default function CreatePostScreen() {
         startDate: needsDates ? buildDateString(startMM, startDD, startYYYY) : undefined,
         endDate: needsDates ? buildDateString(endMM, endDD, endYYYY) : undefined,
         createdAt: Date.now(),
-        authorName: authorName.trim() || 'Anonymous',
+        authorName: authorName.trim() || undefined,
+        authorUsername: username || user.email?.split('@')[0] || undefined,
+        isAnonymousAuthor: authorName.trim() === '',
         wechatId: wechatId.trim() || undefined,
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
@@ -452,27 +888,19 @@ export default function CreatePostScreen() {
         return;
       }
 
+      try {
+        await AsyncStorage.removeItem(POST_DRAFT_KEY);
+      } catch (error) {
+        console.error('Failed to clear saved draft after successful submit:', error);
+      }
+
+      hasSubmittedRef.current = true;
+
       Alert.alert('Success! 🎉', 'Your post has been created!', [
         {
           text: 'OK',
           onPress: () => {
-            setTitle('');
-            setBody('');
-            setTypes([]);
-            setTypeWarning('');
-            setIntent('OFFER');
-            setLocation('');
-            setBudgetMin('');
-            setBudgetMax('');
-            setStartMM(''); setStartDD(''); setStartYYYY('');
-            setEndMM(''); setEndDD(''); setEndYYYY('');
-            setStartDateError(''); setEndDateError('');
-            setAuthorName('');
-            setWechatId('');
-            setPhone('');
-            setEmail('');
-            setNegotiable(false);
-            setImageUris([]);
+            resetForm();
             setSubmitting(false);
             router.replace('/(tabs)');
           },
@@ -498,6 +926,33 @@ export default function CreatePostScreen() {
       return;
     }
     doSubmit();
+  };
+
+  const handleSaveDraft = async () => {
+    if (!isDirty) {
+      Toast.show({
+        type: 'info',
+        text1: 'Nothing to save',
+        text2: 'Add something before saving a draft',
+      });
+      return;
+    }
+
+    try {
+      await AsyncStorage.setItem(POST_DRAFT_KEY, JSON.stringify(buildDraft()));
+      Toast.show({
+        type: 'success',
+        text1: 'Draft saved',
+      });
+      router.replace('/(tabs)');
+    } catch (error) {
+      console.error('Failed to save draft manually:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Draft not saved',
+        text2: 'Please try again.',
+      });
+    }
   };
 
   const TypeButton = ({ value, label }: { value: PostType; label: string }) => (
@@ -540,6 +995,9 @@ export default function CreatePostScreen() {
             <TypeButton value="SHORT_TERM" label="Short-term" />
             <TypeButton value="QA" label="Q&A" />
           </View>
+          <Text style={styles.typeHint}>
+            💡 Looking for both a roommate and a sublet? Post them separately for better visibility.
+          </Text>
           {typeWarning ? (
             <Text style={styles.typeWarning}>{typeWarning}</Text>
           ) : null}
@@ -766,9 +1224,11 @@ export default function CreatePostScreen() {
         {/* Contact Methods */}
         <View style={styles.section}>
           <Text style={styles.label}>
-            Contact Info <Text style={styles.required}>*</Text>
+            Contact Info
+            {!isQAOnly && <Text style={styles.required}>*</Text>}
+            {isQAOnly && <Text style={styles.contactHint}> (optional for Q&amp;A)</Text>}
           </Text>
-          <Text style={styles.contactHint}>At least one required</Text>
+          {!isQAOnly && <Text style={styles.contactHint}>At least one required</Text>}
           <TextInput
             style={[styles.input, styles.contactInput]}
             placeholder="Your WeChat ID"
@@ -829,6 +1289,14 @@ export default function CreatePostScreen() {
           <Text style={styles.submitButtonText}>
             {submitting ? 'Posting...' : 'Create Post'}
           </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.draftButton}
+          onPress={handleSaveDraft}
+          disabled={submitting}
+        >
+          <Text style={styles.draftButtonText}>Save Draft</Text>
         </TouchableOpacity>
 
         <View style={styles.bottomPadding} />

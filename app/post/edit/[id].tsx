@@ -16,6 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import { usePostsStore } from '@/hooks/usePostsStore';
+import { useAuth } from '@/hooks/useAuth';
 import { Post, PostType, PostIntent } from '@/types/post';
 
 const MAX_IMAGES = 8;
@@ -23,6 +24,7 @@ const MAX_IMAGES = 8;
 export default function EditPostScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getPostById, updatePost } = usePostsStore();
+  const { user, username } = useAuth();
   const router = useRouter();
 
   const post = getPostById(id);
@@ -188,7 +190,9 @@ export default function EditPostScreen() {
         budget: budget ? parseFloat(budget) : undefined,
         startDate: needsDates ? buildDateString(startMM, startDD, startYYYY) : undefined,
         endDate: needsDates ? buildDateString(endMM, endDD, endYYYY) : undefined,
-        authorName: authorName.trim() || 'Anonymous',
+        authorName: authorName.trim() || undefined,
+        authorUsername: username || user?.email?.split('@')[0] || post.authorUsername,
+        isAnonymousAuthor: authorName.trim() === '',
         wechatId: wechatId.trim() || undefined,
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,

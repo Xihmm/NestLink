@@ -82,6 +82,7 @@ export default function TabLayout() {
         options={{
           title: 'Post',
           headerTitle: 'Create Post',
+          unmountOnBlur: true,
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>➕</Text>,
           headerLeft: () => (
             <TouchableOpacity

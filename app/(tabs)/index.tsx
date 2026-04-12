@@ -15,6 +15,7 @@ import {
 import { useRouter } from 'expo-router';
 import { usePostsStore } from '@/hooks/usePostsStore';
 import { useAuth } from '@/hooks/useAuth';
+import { POST_TYPE_STYLES } from '@/constants/tag-styles';
 import { Post, PostType, PostIntent } from '@/types/post';
 
 type FilterType = 'ALL' | PostType;
@@ -207,15 +208,6 @@ export default function FeedScreen() {
     return null;
   };
 
-  const getTypeTagStyle = (type: PostType): { backgroundColor: string; color: string } => {
-    switch (type) {
-      case 'ROOMMATE': return { backgroundColor: '#EDE9FE', color: '#5B21B6' };
-      case 'SUBLET':   return { backgroundColor: '#D1FAE5', color: '#065F46' };
-      case 'SHORT_TERM': return { backgroundColor: '#FEF3C7', color: '#92400E' };
-      case 'QA':       return { backgroundColor: '#F3F4F6', color: '#374151' };
-    }
-  };
-
   const getIntentTagStyle = (intent: PostIntent): { backgroundColor: string; color: string } => {
     if (intent === 'OFFER') return { backgroundColor: '#FCE7F3', color: '#9D174D' };
     if (intent === 'SEEK')  return { backgroundColor: '#DBEAFE', color: '#1E40AF' };
@@ -275,7 +267,7 @@ export default function FeedScreen() {
         <View style={styles.cardBody}>
           <View style={styles.tagsRow}>
             {item.types.map((t) => {
-              const ts = getTypeTagStyle(t);
+              const ts = POST_TYPE_STYLES[t];
               return (
                 <View key={t} style={[styles.tag, { backgroundColor: ts.backgroundColor }]}>
                   <Text style={[styles.tagText, { color: ts.color }]}>{t}</Text>
@@ -355,7 +347,7 @@ export default function FeedScreen() {
   return (
     <View style={styles.container}>
       {/* Search Bar + Filter Button */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 8, marginBottom: 8, gap: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 6, marginBottom: 4, gap: 8 }}>
         <View style={[styles.searchContainer, { flex: 1, marginHorizontal: 0, marginTop: 0, marginBottom: 0 }]}>
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
@@ -408,7 +400,7 @@ export default function FeedScreen() {
             onPress={() => setActiveTab('SAVED')}
           >
             <Text style={[styles.filterButtonText, activeTab === 'SAVED' && styles.filterButtonTextActive]}>
-              Saved
+              ❤️ Saved
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -609,15 +601,15 @@ const createStyles = (colors: ReturnType<typeof getColors>) => StyleSheet.create
     paddingHorizontal: 4,
   },
   filterSection: {
-    minHeight: 144,
+    minHeight: 116,
   },
   filterRow: {
-    minHeight: 44,
-    marginBottom: 8,
+    minHeight: 40,
+    marginBottom: 2,
   },
   filterRowContent: {
     paddingHorizontal: 16,
-    paddingVertical: 4,
+    paddingVertical: 1,
     gap: 8,
     alignItems: 'center',
   },
