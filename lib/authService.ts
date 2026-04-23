@@ -16,6 +16,7 @@ import {
   linkWithCredential,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendEmailVerification,
   GoogleAuthProvider,
   EmailAuthProvider,
   User,
@@ -51,6 +52,21 @@ export const registerWithEmail = async (email: string, password: string): Promis
   }
   const result = await createUserWithEmailAndPassword(auth, email, password);
   return result.user;
+};
+
+/** Sends an email verification link to the current user.
+ *  handleCodeInApp: true → when user clicks the link, iOS/Android opens the app
+ *  instead of the browser, and the app handles applyActionCode() itself.
+ */
+export const sendVerificationEmail = async (): Promise<void> => {
+  const user = auth.currentUser;
+  if (!user) throw new Error('No current user to verify');
+  await sendEmailVerification(user, {
+    handleCodeInApp: true,
+    url: 'https://nestlink-8d9ad.firebaseapp.com/__/auth/action',
+    iOS: { bundleId: 'com.xihmm.nestlink' },
+    android: { packageName: 'com.xihmm.nestlink', installApp: false },
+  });
 };
 
 /** Signs in with email+password. */

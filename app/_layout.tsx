@@ -1,10 +1,13 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { Alert, InteractionManager, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, InteractionManager, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
+import { applyActionCode } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { PostsProvider } from '@/hooks/usePostsStore';
@@ -13,7 +16,7 @@ import { AuthProvider, useAuth } from '@/hooks/useAuth';
 function AppShell() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { needsUsernameSetup, saveUsername, loading, user, sessionState } = useAuth();
+  const { needsUsernameSetup, saveUsername, loading, user, sessionState, emailVerified, reloadUser } = useAuth();
   const router = useRouter();
   const segments = useSegments();
   const navigationState = useRootNavigationState();
@@ -52,6 +55,7 @@ function AppShell() {
     const routeKey = segments.join('/');
     // auth is intentionally excluded — it must be reachable by guests to register
     const isPublicRoute = routeKey === '' || routeKey === 'index' || routeKey === 'login';
+    const isVerifyRoute = routeKey === 'verify-email';
     const isProtectedRoute =
       routeKey === '(tabs)' ||
       routeKey.startsWith('(tabs)/') ||
@@ -59,6 +63,19 @@ function AppShell() {
       routeKey === 'post' ||
       routeKey.startsWith('post/');
     const isSignedIn = sessionState === 'guest' || sessionState === 'registered';
+
+    // Registered but email not verified → must stay on verify-email screen
+    const isUnverified = sessionState === 'registered' && !!user && !emailVerified;
+    if (isUnverified && !isVerifyRoute) {
+      router.replace('/verify-email');
+      return;
+    }
+
+    // Verified registered user on verify screen → push to feed
+    if (sessionState === 'registered' && emailVerified && isVerifyRoute) {
+      router.replace('/(tabs)');
+      return;
+    }
 
     if (isSignedIn && isPublicRoute) {
       router.replace('/(tabs)');
@@ -68,7 +85,43 @@ function AppShell() {
     if (sessionState === 'signed_out' && isProtectedRoute) {
       router.replace('/login');
     }
-  }, [loading, navigationState?.key, router, segments, sessionState]);
+  }, [emailVerified, loading, navigationState?.key, router, segments, sessionState, user]);
+
+  // Handle email verification deep links (iOS Universal Links / Android App Links)
+  useEffect(() => {
+    const handleDeepLink = async (url: string) => {
+      try {
+        const queryString = url.split('?')[1];
+        if (!queryString) return;
+        const params: Record<string, string> = {};
+        queryString.split('&').forEach((pair) => {
+          const eqIdx = pair.indexOf('=');
+          if (eqIdx > 0) {
+            const key = pair.slice(0, eqIdx);
+            const val = pair.slice(eqIdx + 1);
+            params[key] = decodeURIComponent(val);
+          }
+        });
+        if (params.mode === 'verifyEmail' && params.oobCode) {
+          console.log('[deep-link] handling verifyEmail');
+          await applyActionCode(auth, params.oobCode);
+          await reloadUser();
+        }
+      } catch (error) {
+        console.warn('[deep-link] error:', error);
+        Alert.alert('Verification failed', 'This link may have expired. Please request a new one from the app.');
+      }
+    };
+
+    // App opened from a deep link (cold start)
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink(url);
+    });
+
+    // App already open, deep link received
+    const subscription = Linking.addEventListener('url', ({ url }) => handleDeepLink(url));
+    return () => subscription.remove();
+  }, [reloadUser]);
 
   const handleSaveUsername = async () => {
     const trimmed = usernameInput.trim();
@@ -107,6 +160,7 @@ function AppShell() {
         />
         <Stack.Screen name="profile" options={{ headerShown: true, title: 'Profile', headerBackTitle: 'Back' }} />
         <Stack.Screen name="post/edit/[id]" options={{ headerShown: true, title: 'Edit Post' }} />
+        <Stack.Screen name="verify-email" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />

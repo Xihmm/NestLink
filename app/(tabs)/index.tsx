@@ -263,7 +263,7 @@ export default function FeedScreen() {
 
         <View style={styles.cardBody}>
           <View style={styles.tagsRow}>
-            {item.types.map((t) => <TagBadge key={t} type={t} />)}
+            {item.types.map((t) => <TagBadge key={t} type={t} small />)}
             {item.intent && (() => {
               const is = getIntentTagStyle(item.intent);
               return (
@@ -726,14 +726,17 @@ const createStyles = (colors: ReturnType<typeof getColors>) => StyleSheet.create
     marginBottom: 6,
   },
   tag: {
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 999,
     borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tagText: {
     fontSize: 10,
     fontWeight: '700',
+    textAlign: 'center',
     textTransform: 'uppercase',
   },
   cardTitle: {

@@ -39,21 +39,21 @@ import {
 import { PostIntent } from '@/types/post';
 import { PostComment } from '@/types/user';
 
-const getColors = () => ({
-  bg: '#0F172A',
-  card: '#111827',
-  elevated: '#162131',
-  text: '#F8FAFC',
-  subtext: '#94A3B8',
-  border: '#243244',
+const getColors = (isDark: boolean) => ({
+  bg: isDark ? '#111827' : '#EEF2F7',
+  card: isDark ? '#1F2937' : '#FFFFFF',
+  elevated: isDark ? '#162131' : '#F8FAFC',
+  text: isDark ? '#F8FAFC' : '#111827',
+  subtext: isDark ? '#94A3B8' : '#6B7280',
+  border: isDark ? '#374151' : '#E2E8F0',
 });
 
 export default function PostDetailScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const screenWidth = Dimensions.get('window').width;
-  const colors = getColors();
-  const styles = createStyles(colors);
+  const colors = getColors(isDark);
+  const styles = createStyles(colors, isDark);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getPostById, updatePostStatus, deletePost, isPostSaved, toggleSavedPost } = usePostsStore();
@@ -491,10 +491,11 @@ export default function PostDetailScreen() {
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
+  const isDark = useColorScheme() === 'dark';
   return (
     <View style={stylesShared.row}>
       <Text style={stylesShared.label}>{label}</Text>
-      <Text style={stylesShared.value}>{value}</Text>
+      <Text style={[stylesShared.value, { color: isDark ? '#F8FAFC' : '#111827' }]}>{value}</Text>
     </View>
   );
 }
@@ -510,14 +511,23 @@ function ContactRow({
   copied: boolean;
   onCopy: () => void;
 }) {
+  const isDark = useColorScheme() === 'dark';
   return (
     <View style={stylesShared.contactRow}>
       <View style={{ flex: 1 }}>
         <Text style={stylesShared.label}>{label}</Text>
-        <Text style={stylesShared.value}>{value}</Text>
+        <Text style={[stylesShared.value, { color: isDark ? '#F8FAFC' : '#111827' }]}>{value}</Text>
       </View>
-      <TouchableOpacity style={stylesShared.copyButton} onPress={onCopy}>
-        <Text style={stylesShared.copyButtonText}>{copied ? 'Copied' : 'Copy'}</Text>
+      <TouchableOpacity
+        style={[
+          stylesShared.copyButton,
+          { borderColor: isDark ? '#1D4ED8' : '#93C5FD', backgroundColor: isDark ? '#13263E' : '#DBEAFE' },
+        ]}
+        onPress={onCopy}
+      >
+        <Text style={[stylesShared.copyButtonText, { color: isDark ? '#BFDBFE' : '#1E40AF' }]}>
+          {copied ? 'Copied' : 'Copy'}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -534,7 +544,6 @@ const stylesShared = StyleSheet.create({
     fontWeight: '600',
   },
   value: {
-    color: '#F8FAFC',
     fontSize: 15,
     lineHeight: 22,
   },
@@ -545,20 +554,17 @@ const stylesShared = StyleSheet.create({
   },
   copyButton: {
     borderWidth: 1,
-    borderColor: '#1D4ED8',
-    backgroundColor: '#13263E',
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   copyButtonText: {
-    color: '#BFDBFE',
     fontSize: 12,
     fontWeight: '700',
   },
 });
 
-const createStyles = (colors: ReturnType<typeof getColors>) =>
+const createStyles = (colors: ReturnType<typeof getColors>, isDark: boolean) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -651,8 +657,8 @@ const createStyles = (colors: ReturnType<typeof getColors>) =>
       paddingVertical: 9,
     },
     pillButtonActive: {
-      backgroundColor: '#13263E',
-      borderColor: '#1D4ED8',
+      backgroundColor: isDark ? '#13263E' : '#DBEAFE',
+      borderColor: isDark ? '#1D4ED8' : '#3B82F6',
     },
     pillButtonText: {
       color: colors.text,
@@ -698,9 +704,9 @@ const createStyles = (colors: ReturnType<typeof getColors>) =>
       alignItems: 'center',
     },
     contactButtonDisabled: {
-      backgroundColor: '#1E293B',
+      backgroundColor: colors.elevated,
       borderWidth: 1,
-      borderColor: '#334155',
+      borderColor: colors.border,
     },
     contactButtonText: {
       color: '#FFFFFF',
@@ -708,7 +714,7 @@ const createStyles = (colors: ReturnType<typeof getColors>) =>
       fontWeight: '700',
     },
     contactButtonDisabledText: {
-      color: '#64748B',
+      color: colors.subtext,
       fontWeight: '600',
     },
     contactDetails: {

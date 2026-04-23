@@ -16,7 +16,7 @@ import {
 import { Redirect } from 'expo-router';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { registerWithEmail, signInWithEmail, isEduEmail } from '@/lib/authService';
+import { registerWithEmail, signInWithEmail, isEduEmail, sendVerificationEmail } from '@/lib/authService';
 import { useAuth } from '@/hooks/useAuth';
 
 type Tab = 'login' | 'signup';
@@ -227,9 +227,17 @@ export default function AuthScreen() {
     try {
       if (tab === 'signup') {
         await registerWithEmail(trimmedEmail, password);
+        try {
+          await sendVerificationEmail();
+          console.log('[auth] verification email sent');
+        } catch (verifyErr) {
+          console.warn('[auth] could not send verification email:', verifyErr);
+        }
         if (isEduEmail(trimmedEmail)) {
           setEduDetected(true);
-          console.log('[auth] signup success (.edu), waiting for auth-state redirect to /(tabs)');
+          console.log('[auth] signup success (.edu), nav guard will redirect to /verify-email');
+        } else {
+          console.log('[auth] signup success, nav guard will redirect to /verify-email');
         }
       } else {
         await signInWithEmail(trimmedEmail, password);

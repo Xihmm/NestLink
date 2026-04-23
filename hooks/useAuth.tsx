@@ -32,10 +32,12 @@ interface AuthContextType {
   username: string | null;
   profile: UserProfile | null;
   needsUsernameSetup: boolean;
+  emailVerified: boolean;
   continueAsGuest: () => Promise<void>;
   saveUsername: (nextUsername: string) => Promise<void>;
   updateProfile: (updates: UpdateProfileInput) => Promise<void>;
   refreshProfile: () => Promise<void>;
+  reloadUser: () => Promise<boolean>;
   signOut: () => Promise<void>;
 }
 
@@ -254,6 +256,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
   }, [waitForAuthUser]);
 
+  const reloadUser = useCallback(async (): Promise<boolean> => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return false;
+    await currentUser.reload();
+    const refreshed = auth.currentUser;
+    if (refreshed) setUser({ ...refreshed });
+    return refreshed?.emailVerified ?? false;
+  }, []);
+
   const signOut = useCallback(async () => {
     await firebaseSignOut(auth);
     await waitForAuthUser((nextUser) => nextUser === null);
@@ -290,10 +301,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     username: profile?.username ?? null,
     profile,
     needsUsernameSetup,
+    emailVerified: user?.emailVerified ?? false,
     continueAsGuest,
     saveUsername,
     updateProfile,
     refreshProfile,
+    reloadUser,
     signOut,
   }), [
     continueAsGuest,
@@ -301,6 +314,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     needsUsernameSetup,
     profile,
     refreshProfile,
+    reloadUser,
     saveUsername,
     sessionState,
     updateProfile,

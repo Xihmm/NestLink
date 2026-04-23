@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { Avatar } from '@/components/avatar';
 import { VerifiedBadge } from '@/components/verified-badge';
 
@@ -20,15 +20,23 @@ export function AuthorRow({
   verified,
   avatarSize = 36,
 }: Props) {
+  const isDark = useColorScheme() === 'dark';
+
   return (
     <View style={styles.container}>
       <Avatar username={username} avatarUrl={avatarUrl} avatarPreset={avatarPreset} size={avatarSize} />
       <View style={styles.textWrap}>
         <View style={styles.topRow}>
-          <Text style={styles.username} numberOfLines={1}>{username}</Text>
+          <Text style={[styles.username, { color: isDark ? '#F8FAFC' : '#111827' }]} numberOfLines={1}>
+            {username}
+          </Text>
           {verified ? <VerifiedBadge compact /> : null}
         </View>
-        {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
+        {subtitle ? (
+          <Text style={[styles.subtitle, { color: isDark ? '#94A3B8' : '#6B7280' }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -49,13 +57,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   username: {
-    color: '#F8FAFC',
     fontSize: 14,
     fontWeight: '700',
     maxWidth: '75%',
   },
   subtitle: {
-    color: '#94A3B8',
     fontSize: 12,
     marginTop: 2,
   },

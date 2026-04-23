@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { AuthorRow } from '@/components/author-row';
 import { formatRelativeTime } from '@/lib/time';
 import { PostComment } from '@/types/user';
@@ -15,6 +15,19 @@ type Props = {
   emptyText?: string;
 };
 
+const getColors = (isDark: boolean) => ({
+  sectionTitle: isDark ? '#F8FAFC' : '#111827',
+  empty: isDark ? '#94A3B8' : '#6B7280',
+  cardBg: isDark ? '#162131' : '#FFFFFF',
+  cardBorder: isDark ? '#243244' : '#E2E8F0',
+  body: isDark ? '#E2E8F0' : '#374151',
+  delete: isDark ? '#FCA5A5' : '#EF4444',
+  composerBg: isDark ? '#1F2937' : '#FFFFFF',
+  composerBorder: isDark ? '#374151' : '#E2E8F0',
+  inputText: isDark ? '#F8FAFC' : '#111827',
+  placeholder: isDark ? '#94A3B8' : '#9CA3AF',
+});
+
 export function CommentsSection({
   comments,
   commentText,
@@ -23,13 +36,17 @@ export function CommentsSection({
   onDeleteComment,
   currentUserId,
   submitting,
-  emptyText = 'No comments yet.',
+  emptyText = 'No comments yet. Start the conversation.',
 }: Props) {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const c = getColors(isDark);
+
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Comments</Text>
+      <Text style={[styles.sectionTitle, { color: c.sectionTitle }]}>Comments</Text>
       {comments.length === 0 ? (
-        <Text style={styles.empty}>{emptyText}</Text>
+        <Text style={[styles.empty, { color: c.empty }]}>{emptyText}</Text>
       ) : (
         <View style={styles.list}>
           {comments.map((comment) => {
@@ -41,7 +58,7 @@ export function CommentsSection({
               'Anonymous';
 
             return (
-              <View key={comment.id} style={styles.card}>
+              <View key={comment.id} style={[styles.card, { backgroundColor: c.cardBg, borderColor: c.cardBorder }]}>
                 <View style={styles.cardHeader}>
                   <View style={styles.authorWrapper}>
                     <AuthorRow
@@ -67,22 +84,22 @@ export function CommentsSection({
                         ])
                       }
                     >
-                      <Text style={styles.delete}>Delete</Text>
+                      <Text style={[styles.delete, { color: c.delete }]}>Delete</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
-                <Text style={styles.body}>{comment.text}</Text>
+                <Text style={[styles.body, { color: c.body }]}>{comment.text}</Text>
               </View>
             );
           })}
         </View>
       )}
 
-      <View style={styles.composer}>
+      <View style={[styles.composer, { backgroundColor: c.composerBg, borderColor: c.composerBorder }]}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { color: c.inputText }]}
           placeholder="Add a comment..."
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={c.placeholder}
           value={commentText}
           onChangeText={onChangeCommentText}
           multiline
@@ -107,12 +124,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#F8FAFC',
     marginBottom: 14,
   },
   empty: {
     fontSize: 14,
-    color: '#94A3B8',
     marginBottom: 12,
   },
   list: {
@@ -121,8 +136,6 @@ const styles = StyleSheet.create({
   },
   card: {
     borderWidth: 1,
-    borderColor: '#243244',
-    backgroundColor: '#162131',
     borderRadius: 14,
     padding: 12,
   },
@@ -142,12 +155,10 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   delete: {
-    color: '#FCA5A5',
     fontSize: 12,
     fontWeight: '600',
   },
   body: {
-    color: '#E2E8F0',
     fontSize: 14,
     lineHeight: 21,
   },
@@ -156,8 +167,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 10,
     borderWidth: 1,
-    borderColor: '#243244',
-    backgroundColor: '#111827',
     borderRadius: 14,
     padding: 10,
   },
@@ -165,7 +174,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 44,
     maxHeight: 120,
-    color: '#F8FAFC',
     fontSize: 14,
     paddingVertical: 8,
     textAlignVertical: 'top',
@@ -179,7 +187,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: '#60A5FA',
+    backgroundColor: '#93C5FD',
   },
   sendButtonText: {
     color: '#FFFFFF',

@@ -13,9 +13,25 @@
       "bundleIdentifier": "com.xihmm.nestlink",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "associatedDomains": ["applinks:nestlink-8d9ad.firebaseapp.com"]
     },
     "android": {
+      "package": "com.xihmm.nestlink",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "nestlink-8d9ad.firebaseapp.com",
+              "pathPrefix": "/__/auth/action"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

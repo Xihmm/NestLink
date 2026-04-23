@@ -5,9 +5,10 @@ import { PostType } from '@/types/post';
 
 type Props = {
   type: PostType;
+  small?: boolean;
 };
 
-export function TagBadge({ type }: Props) {
+export function TagBadge({ type, small }: Props) {
   const colorScheme = useColorScheme();
   const style = getTagStyles(colorScheme === 'dark')[type];
 
@@ -15,13 +16,16 @@ export function TagBadge({ type }: Props) {
     <View
       style={[
         styles.badge,
+        small && styles.badgeSmall,
         {
           backgroundColor: style.backgroundColor,
           borderColor: style.borderColor,
         },
       ]}
     >
-      <Text style={[styles.text, { color: style.color }]}>{style.label ?? type}</Text>
+      <Text style={[styles.text, small && styles.textSmall, { color: style.color }]}>
+        {style.label ?? type}
+      </Text>
     </View>
   );
 }
@@ -32,10 +36,20 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeSmall: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
   },
   text: {
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+  textSmall: {
+    fontSize: 10,
   },
 });

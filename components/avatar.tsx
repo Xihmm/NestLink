@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { AVATAR_PRESETS, DEFAULT_AVATAR_PRESET } from '@/constants/avatar-presets';
 
 type Props = {
@@ -20,9 +20,15 @@ function getInitials(username?: string | null): string {
 }
 
 export function Avatar({ username, avatarUrl, avatarPreset, size = 40 }: Props) {
+  const isDark = useColorScheme() === 'dark';
   const preset =
     AVATAR_PRESETS.find((item) => item.id === avatarPreset) ??
     AVATAR_PRESETS.find((item) => item.id === DEFAULT_AVATAR_PRESET);
+
+  // Initials fallback colors adapt to light/dark mode
+  const initialsBackground = isDark ? '#1E3A5F' : '#DBEAFE';
+  const initialsColor = isDark ? '#93C5FD' : '#1E40AF';
+  const initialsBorder = isDark ? '#3B82F6' : '#93C5FD';
 
   if (avatarUrl) {
     return (
@@ -41,15 +47,15 @@ export function Avatar({ username, avatarUrl, avatarPreset, size = 40 }: Props) 
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor: preset?.backgroundColor ?? '#1E293B',
-          borderColor: preset?.accentColor ?? '#60A5FA',
+          backgroundColor: avatarPreset ? (preset?.backgroundColor ?? initialsBackground) : initialsBackground,
+          borderColor: avatarPreset ? (preset?.accentColor ?? initialsBorder) : initialsBorder,
         },
       ]}
     >
       {avatarPreset ? (
         <Text style={[styles.emoji, { fontSize: size * 0.46 }]}>{preset?.emoji}</Text>
       ) : (
-        <Text style={[styles.initials, { fontSize: size * 0.34 }]}>{getInitials(username)}</Text>
+        <Text style={[styles.initials, { fontSize: size * 0.34, color: initialsColor }]}>{getInitials(username)}</Text>
       )}
     </View>
   );

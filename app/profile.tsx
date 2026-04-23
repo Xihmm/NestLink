@@ -40,7 +40,7 @@ export default function ProfileScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const colors = getColors(isDark);
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isDark);
 
   const [editing, setEditing] = useState(false);
   const [usernameInput, setUsernameInput] = useState(profile?.username ?? '');
@@ -328,7 +328,7 @@ export default function ProfileScreen() {
   );
 }
 
-const createStyles = (colors: ReturnType<typeof getColors>) =>
+const createStyles = (colors: ReturnType<typeof getColors>, isDark: boolean) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -468,8 +468,8 @@ const createStyles = (colors: ReturnType<typeof getColors>) =>
       gap: 8,
     },
     presetCardSelected: {
-      borderColor: '#60A5FA',
-      backgroundColor: '#13263E',
+      borderColor: '#3B82F6',
+      backgroundColor: isDark ? '#13263E' : '#DBEAFE',
     },
     presetLabel: {
       color: colors.text,
@@ -567,8 +567,8 @@ const createStyles = (colors: ReturnType<typeof getColors>) =>
       fontWeight: '700',
     },
     secondaryButton: {
-      backgroundColor: '#162131',
-      borderColor: '#243244',
+      backgroundColor: isDark ? '#162131' : '#1E40AF',
+      borderColor: isDark ? '#243244' : '#1E40AF',
       borderWidth: 1,
       borderRadius: 12,
       paddingHorizontal: 16,
@@ -576,7 +576,7 @@ const createStyles = (colors: ReturnType<typeof getColors>) =>
       alignItems: 'center',
     },
     secondaryButtonText: {
-      color: '#E2E8F0',
+      color: '#FFFFFF',
       fontSize: 14,
       fontWeight: '700',
     },
