@@ -1,129 +1,222 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import {
-  User,
-  onAuthStateChanged,
-  signInAnonymously,
-  signOut as firebaseSignOut,
-} from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+import { initAnonymousUser } from '@/lib/authService';
+import {
+  buildDefaultUsername,
+  ensureUserProfile,
+  isUrEmail,
+  syncUserIdentityAcrossContent,
+  validateBio,
+  validateUsername,
+} from '@/lib/userProfiles';
+import { SessionState } from '@/types/user';
+import { UserProfile } from '@/types/user';
+
+type UpdateProfileInput = {
+  username?: string;
+  bio?: string;
+  avatarUrl?: string | null;
+  avatarPreset?: string | null;
+};
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  sessionState: SessionState;
+  hasSession: boolean;
   isAnonymous: boolean;
+  isRegisteredUser: boolean;
   isEduVerified: boolean;
   userEmail: string | null;
   username: string | null;
+  profile: UserProfile | null;
   needsUsernameSetup: boolean;
+  continueAsGuest: () => Promise<void>;
   saveUsername: (nextUsername: string) => Promise<void>;
+  updateProfile: (updates: UpdateProfileInput) => Promise<void>;
+  refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const buildDefaultUsername = (u: User) => {
-  const emailPrefix = u.email?.split('@')[0]?.replace(/[^a-zA-Z0-9._-]/g, '').trim();
-  if (emailPrefix) return emailPrefix.slice(0, 24);
-  return `user_${u.uid.slice(0, 8)}`;
-};
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [username, setUsername] = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [needsUsernameSetup, setNeedsUsernameSetup] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const saveUsername = useCallback(async (nextUsername: string) => {
-    const trimmed = nextUsername.trim();
-    if (!user?.uid || !trimmed) {
-      throw new Error('Username cannot be empty.');
+  const hydrateCurrentUser = useCallback(async (nextUser: User) => {
+    const nextProfile = await ensureUserProfile(nextUser);
+    const generatedUsername = buildDefaultUsername(nextUser);
+    setUser(nextUser);
+    setProfile(nextProfile);
+    setNeedsUsernameSetup(!nextUser.isAnonymous && nextProfile.username === generatedUsername);
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
+      console.log('[useAuth] onAuthStateChanged fired uid=', nextUser?.uid ?? null, 'isAnonymous=', nextUser?.isAnonymous ?? null);
+      setLoading(true);
+
+      if (!nextUser) {
+        setUser(null);
+        setProfile(null);
+        setNeedsUsernameSetup(false);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        await hydrateCurrentUser(nextUser);
+      } catch (error) {
+        console.error('Failed to initialize auth state:', error);
+        const fallbackUsername = buildDefaultUsername(nextUser);
+        setUser(nextUser);
+        setProfile({
+          uid: nextUser.uid,
+          username: fallbackUsername,
+          email: nextUser.email ?? null,
+          isVerified: isUrEmail(nextUser.email),
+          isAnonymous: nextUser.isAnonymous,
+        });
+        setNeedsUsernameSetup(!nextUser.isAnonymous);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return unsubscribe;
+  }, [hydrateCurrentUser]);
+
+  const refreshProfile = useCallback(async () => {
+    if (!auth.currentUser) return;
+    await hydrateCurrentUser(auth.currentUser);
+  }, [hydrateCurrentUser]);
+
+  const updateProfile = useCallback(async (updates: UpdateProfileInput) => {
+    if (!user?.uid) {
+      throw new Error('You must be signed in to update your profile.');
     }
+
+    const nextUsername =
+      updates.username !== undefined
+        ? validateUsername(updates.username)
+        : profile?.username ?? buildDefaultUsername(user);
+    const nextBio =
+      updates.bio !== undefined
+        ? validateBio(updates.bio)
+        : profile?.bio ?? '';
+    const nextAvatarUrl =
+      updates.avatarUrl !== undefined ? updates.avatarUrl ?? null : profile?.avatarUrl ?? null;
+    const nextAvatarPreset =
+      updates.avatarPreset !== undefined ? updates.avatarPreset ?? null : profile?.avatarPreset ?? null;
+    const nextVerified = isUrEmail(user.email);
 
     await setDoc(
       doc(db, 'users', user.uid),
       {
-        username: trimmed,
+        username: nextUsername,
+        bio: nextBio || null,
+        avatarUrl: nextAvatarUrl,
+        avatarPreset: nextAvatarUrl ? null : nextAvatarPreset,
         email: user.email ?? null,
+        isAnonymous: user.isAnonymous,
+        isVerified: nextVerified,
+        school: nextVerified ? 'University of Rochester' : profile?.school ?? null,
+        updatedAt: serverTimestamp(),
       },
       { merge: true }
     );
 
-    setUsername(trimmed);
-    setNeedsUsernameSetup(false);
-  }, [user]);
-
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      if (u) {
-        setUser(u);
-        const defaultUsername = buildDefaultUsername(u);
-
-        try {
-          const userDocRef = doc(db, 'users', u.uid);
-          const snapshot = await getDoc(userDocRef);
-          const existingData = snapshot.exists() ? snapshot.data() : {};
-          const resolvedUsername =
-            typeof existingData.username === 'string' && existingData.username.trim()
-              ? existingData.username
-              : defaultUsername;
-          const isDefaultGenerated = resolvedUsername === defaultUsername;
-
-          setUsername(resolvedUsername);
-          setNeedsUsernameSetup(!u.isAnonymous && isDefaultGenerated);
-
-          const profileUpdates: Record<string, unknown> = {};
-          if (!snapshot.exists()) {
-            profileUpdates.createdAt = Date.now();
-          }
-          if (existingData.username !== resolvedUsername) {
-            profileUpdates.username = resolvedUsername;
-          }
-          if (u.email && existingData.email !== u.email) {
-            profileUpdates.email = u.email;
-          }
-
-          if (Object.keys(profileUpdates).length > 0) {
-            await setDoc(userDocRef, profileUpdates, { merge: true });
-          }
-        } catch (error) {
-          console.error('Failed to initialize user profile:', error);
-          setUsername(defaultUsername);
-          setNeedsUsernameSetup(!u.isAnonymous);
-        }
-
-        setLoading(false);
-      } else {
-        // No user — sign in anonymously automatically
-        setUser(null);
-        setUsername(null);
-        setNeedsUsernameSetup(false);
-        signInAnonymously(auth).catch((error) => {
-          console.error('Anonymous sign-in failed:', error);
-          setLoading(false);
-        });
-      }
+    await syncUserIdentityAcrossContent(user.uid, {
+      username: nextUsername,
+      avatarUrl: nextAvatarUrl ?? undefined,
+      avatarPreset: (nextAvatarUrl ? undefined : nextAvatarPreset ?? undefined) as UserProfile['avatarPreset'],
+      isVerified: nextVerified,
+      email: user.email ?? null,
     });
-    return unsub;
+
+    setProfile((prev) => ({
+      uid: user.uid,
+      username: nextUsername,
+      bio: nextBio || undefined,
+      avatarUrl: nextAvatarUrl ?? undefined,
+      avatarPreset: (nextAvatarUrl ? undefined : nextAvatarPreset ?? undefined) as UserProfile['avatarPreset'],
+      email: user.email ?? null,
+      school: nextVerified ? 'University of Rochester' : prev?.school ?? null,
+      isVerified: nextVerified,
+      isAnonymous: user.isAnonymous,
+      savedPostIds: prev?.savedPostIds,
+      createdAt: prev?.createdAt,
+      updatedAt: Date.now(),
+    }));
+    setNeedsUsernameSetup(false);
+  }, [profile, user]);
+
+  const saveUsername = useCallback(async (nextUsername: string) => {
+    await updateProfile({ username: nextUsername });
+  }, [updateProfile]);
+
+  const continueAsGuest = useCallback(async () => {
+    await initAnonymousUser();
   }, []);
 
-  const signOut = () => firebaseSignOut(auth);
+  const signOut = useCallback(async () => {
+    await auth.signOut();
+  }, []);
 
-  return (
-    <AuthContext.Provider value={{
-      user,
+  const sessionState: SessionState = useMemo(() => {
+    if (loading) return 'loading';
+    if (!user) return 'signed_out';
+    return user.isAnonymous ? 'guest' : 'registered';
+  }, [loading, user]);
+
+  useEffect(() => {
+    console.log(
+      '[useAuth] state loading=',
       loading,
-      isAnonymous: user?.isAnonymous ?? true,
-      isEduVerified: user?.email?.toLowerCase().endsWith('.edu') ?? false,
-      userEmail: user?.email ?? null,
-      username,
-      needsUsernameSetup,
-      saveUsername,
-      signOut,
-    }}>
-      {children}
-    </AuthContext.Provider>
-  );
+      'sessionState=',
+      sessionState,
+      'uid=',
+      user?.uid ?? null,
+      'isAnonymous=',
+      user?.isAnonymous ?? null
+    );
+  }, [loading, sessionState, user]);
+
+  const value = useMemo<AuthContextType>(() => ({
+    user,
+    loading,
+    sessionState,
+    hasSession: sessionState === 'guest' || sessionState === 'registered',
+    isAnonymous: sessionState === 'guest',
+    isRegisteredUser: sessionState === 'registered',
+    isEduVerified: profile?.isVerified ?? isUrEmail(user?.email),
+    userEmail: user?.email ?? null,
+    username: profile?.username ?? null,
+    profile,
+    needsUsernameSetup,
+    continueAsGuest,
+    saveUsername,
+    updateProfile,
+    refreshProfile,
+    signOut,
+  }), [
+    continueAsGuest,
+    loading,
+    needsUsernameSetup,
+    profile,
+    refreshProfile,
+    saveUsername,
+    sessionState,
+    updateProfile,
+    user,
+  ]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

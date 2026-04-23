@@ -1,6 +1,15 @@
 export type PostType = "ROOMMATE" | "SUBLET" | "SHORT_TERM" | "QA";
 export type PostIntent = "OFFER" | "SEEK" | null;
 export type PostStatus = "ACTIVE" | "FOUND" | "RENTED_OUT" | "CLOSED";
+export type TimestampValue =
+  | number
+  | {
+      seconds: number;
+      nanoseconds?: number;
+      toMillis?: () => number;
+    }
+  | null
+  | undefined;
 
 export interface Post {
   id: string;
@@ -14,10 +23,13 @@ export interface Post {
   budgetMax?: number;
   startDate?: string; // ISO string
   endDate?: string; // ISO string
-  createdAt: number; // timestamp
+  createdAt: TimestampValue; // Firestore timestamp or milliseconds
   authorName?: string; // default "Anonymous"
   authorUsername?: string;
   isAnonymousAuthor?: boolean;
+  authorAvatarUrl?: string;
+  authorAvatarPreset?: string;
+  authorVerified?: boolean;
   wechatId?: string;
   phone?: string;
   email?: string;
@@ -28,4 +40,3 @@ export interface Post {
   imageUrls?: string[];
   negotiable?: boolean;
 }
-

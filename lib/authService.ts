@@ -22,7 +22,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
-/** Called on app start. Signs in anonymously if no session exists. */
+/** Starts or restores an anonymous guest session. */
 export const initAnonymousUser = async (): Promise<void> => {
   if (auth.currentUser) return;
   await signInAnonymously(auth);
@@ -31,7 +31,7 @@ export const initAnonymousUser = async (): Promise<void> => {
 /** Returns the currently authenticated user, or null. */
 export const getCurrentUser = (): User | null => auth.currentUser;
 
-/** Signs the user out (they will be auto-signed-in anonymously again on next launch). */
+/** Signs the user out completely. */
 export const signOutUser = (): Promise<void> => signOut(auth);
 
 /** Returns true if the email is a .edu address. */

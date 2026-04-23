@@ -258,7 +258,7 @@ export default function CreatePostScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const { addPost } = usePostsStore();
-  const { user, loading: authLoading, isAnonymous, username } = useAuth();
+  const { user, loading: authLoading, username, profile } = useAuth();
 
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -861,7 +861,10 @@ export default function CreatePostScreen() {
         createdAt: Date.now(),
         authorName: authorName.trim() || undefined,
         authorUsername: username || user.email?.split('@')[0] || undefined,
-        isAnonymousAuthor: authorName.trim() === '',
+        isAnonymousAuthor: false,
+        authorAvatarUrl: profile?.avatarUrl,
+        authorAvatarPreset: profile?.avatarUrl ? undefined : profile?.avatarPreset,
+        authorVerified: profile?.isVerified ?? false,
         wechatId: wechatId.trim() || undefined,
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
@@ -902,7 +905,7 @@ export default function CreatePostScreen() {
           onPress: () => {
             resetForm();
             setSubmitting(false);
-            router.replace('/(tabs)');
+            router.replace('/(tabs)/index');
           },
         },
       ]);
@@ -944,7 +947,7 @@ export default function CreatePostScreen() {
         type: 'success',
         text1: 'Draft saved',
       });
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/index');
     } catch (error) {
       console.error('Failed to save draft manually:', error);
       Toast.show({
@@ -1022,12 +1025,12 @@ export default function CreatePostScreen() {
             </View>
             {intent === 'OFFER' && (
               <Text style={{ fontSize: 12, color: colors.subtext, marginTop: 6, paddingHorizontal: 4 }}>
-                🏠 You have a place or spot to offer — sublet, room, short-term stay, etc.
+                🏠 You have a place or spot to offer - sublet, room, short-term stay, etc.
               </Text>
             )}
             {intent === 'SEEK' && (
               <Text style={{ fontSize: 12, color: colors.subtext, marginTop: 6, paddingHorizontal: 4 }}>
-                🔍 You're looking for a place, a room, or a roommate.
+                🔍 You&apos;re looking for a place, a room, or a roommate.
               </Text>
             )}
           </View>
@@ -1080,7 +1083,7 @@ export default function CreatePostScreen() {
         <View style={styles.section}>
           <Text style={styles.label}>Budget ($/month)</Text>
           <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
-            Fill in min, max, or both. e.g. "up to $1200/mo", "$800+/mo", or "$800–$1200/mo"
+            Fill in min, max, or both. e.g. &quot;up to $1200/mo&quot;, &quot;$800+/mo&quot;, or &quot;$800-$1200/mo&quot;
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <TextInput

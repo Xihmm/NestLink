@@ -178,7 +178,7 @@ export default function AuthScreen() {
   const [emailInput, setEmailInput] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [eduDetected, setEduDetected] = useState(false);
 
   const colorScheme = useColorScheme();
@@ -186,8 +186,10 @@ export default function AuthScreen() {
   const colors = getColors(isDark);
   const styles = createStyles(colors);
 
+  console.log('[auth] render tab=', tab, 'submitting=', submitting, 'eduDetected=', eduDetected);
+
   const handleSubmit = async () => {
-    if (loading) return;
+    if (submitting) return;
 
     const trimmedEmail = emailInput.trim().toLowerCase();
 
@@ -207,30 +209,35 @@ export default function AuthScreen() {
       }
     }
 
-    setLoading(true);
+    setSubmitting(true);
     try {
       if (tab === 'signup') {
         await registerWithEmail(trimmedEmail, password);
         if (isEduEmail(trimmedEmail)) {
           setEduDetected(true);
+          console.log('[auth] signup success (.edu), scheduling redirect to /(tabs)');
           setTimeout(() => {
+            console.log('[auth] executing delayed redirect to /(tabs)');
             router.replace('/(tabs)');
           }, 2000);
         } else {
+          console.log('[auth] signup success, redirecting to /(tabs)');
           router.replace('/(tabs)');
         }
       } else {
         await signInWithEmail(trimmedEmail, password);
+        console.log('[auth] login success, redirecting to /(tabs)');
         router.replace('/(tabs)');
       }
     } catch (error) {
       Alert.alert('Error', friendlyError(error));
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
   const handleSkip = () => {
+    console.log('[auth] skip pressed, redirecting to /(tabs)');
     router.replace('/(tabs)');
   };
 
@@ -321,18 +328,18 @@ export default function AuthScreen() {
             {eduDetected && (
               <View style={styles.eduBanner}>
                 <Text style={styles.eduBannerText}>
-                  🎓 .edu email detected! You'll get a verified badge.
+                  🎓 .edu email detected! You&apos;ll get a verified badge.
                 </Text>
               </View>
             )}
 
             <TouchableOpacity
-              style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+              style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
               onPress={handleSubmit}
-              disabled={loading}
+              disabled={submitting}
             >
               <Text style={styles.submitButtonText}>
-                {loading ? 'Please wait...' : tab === 'signup' ? 'Create Account' : 'Log In'}
+                {submitting ? 'Please wait...' : tab === 'signup' ? 'Create Account' : 'Log In'}
               </Text>
             </TouchableOpacity>
 

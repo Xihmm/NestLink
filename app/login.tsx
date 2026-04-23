@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
-import { initAnonymousUser } from '@/lib/authService';
 import pigImage from '@/assets/images/pig.png';
 
 const getColors = (isDark: boolean) => ({
@@ -105,11 +104,22 @@ const createStyles = (colors: ReturnType<typeof getColors>) =>
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { loading, continueAsGuest, sessionState, hasSession, isRegisteredUser } = useAuth();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const colors = getColors(isDark);
   const styles = createStyles(colors);
+
+  console.log(
+    '[login] render loading=',
+    loading,
+    'hasSession=',
+    hasSession,
+    'sessionState=',
+    sessionState,
+    'isRegisteredUser=',
+    isRegisteredUser
+  );
 
   const handleContinue = async () => {
     if (loading) {
@@ -118,9 +128,8 @@ export default function LoginScreen() {
     }
 
     try {
-      if (!user) {
-        await initAnonymousUser();
-      }
+      await continueAsGuest();
+      console.log('[login] guest continue success, redirecting to /(tabs)');
       router.replace('/(tabs)');
     } catch (error) {
       console.error('Failed to continue from login screen:', error);
@@ -161,7 +170,9 @@ export default function LoginScreen() {
             <Text style={styles.continueButtonText}>Sign up with Email</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handleContinue}>
-            <Text style={styles.guestLink}>Browse as guest →</Text>
+            <Text style={styles.guestLink}>
+              {sessionState === 'guest' ? 'Resume guest session →' : 'Browse as guest →'}
+            </Text>
           </TouchableOpacity>
           <Text style={styles.disclaimer}>
             By continuing, you agree to our Terms of Service.{'\n'}

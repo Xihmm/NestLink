@@ -24,7 +24,7 @@ const MAX_IMAGES = 8;
 export default function EditPostScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getPostById, updatePost } = usePostsStore();
-  const { user, username } = useAuth();
+  const { user, username, profile } = useAuth();
   const router = useRouter();
 
   const post = getPostById(id);
@@ -192,7 +192,10 @@ export default function EditPostScreen() {
         endDate: needsDates ? buildDateString(endMM, endDD, endYYYY) : undefined,
         authorName: authorName.trim() || undefined,
         authorUsername: username || user?.email?.split('@')[0] || post.authorUsername,
-        isAnonymousAuthor: authorName.trim() === '',
+        isAnonymousAuthor: false,
+        authorAvatarUrl: profile?.avatarUrl ?? post.authorAvatarUrl,
+        authorAvatarPreset: profile?.avatarUrl ? undefined : profile?.avatarPreset ?? post.authorAvatarPreset,
+        authorVerified: profile?.isVerified ?? post.authorVerified,
         wechatId: wechatId.trim() || undefined,
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
@@ -201,7 +204,7 @@ export default function EditPostScreen() {
 
       await updatePost(id, updates, post.isSample);
       router.back();
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to save changes. Please try again.');
       setSubmitting(false);
     }

@@ -15,7 +15,8 @@ import {
 import { useRouter } from 'expo-router';
 import { usePostsStore } from '@/hooks/usePostsStore';
 import { useAuth } from '@/hooks/useAuth';
-import { POST_TYPE_STYLES } from '@/constants/tag-styles';
+import { TagBadge } from '@/components/tag-badge';
+import { formatRelativeTime, toMillis } from '@/lib/time';
 import { Post, PostType, PostIntent } from '@/types/post';
 
 type FilterType = 'ALL' | PostType;
@@ -146,14 +147,15 @@ export default function FeedScreen() {
       }
 
       // Time filter
+      const createdAtMs = toMillis(post.createdAt) ?? 0;
       if (timeFilter === 'today') {
-        if (post.createdAt < Date.now() - 24 * 60 * 60 * 1000) return false;
+        if (createdAtMs < Date.now() - 24 * 60 * 60 * 1000) return false;
       }
       if (timeFilter === 'week') {
-        if (post.createdAt < Date.now() - 7 * 24 * 60 * 60 * 1000) return false;
+        if (createdAtMs < Date.now() - 7 * 24 * 60 * 60 * 1000) return false;
       }
       if (timeFilter === 'month') {
-        if (post.createdAt < Date.now() - 30 * 24 * 60 * 60 * 1000) return false;
+        if (createdAtMs < Date.now() - 30 * 24 * 60 * 60 * 1000) return false;
       }
 
 
@@ -185,17 +187,6 @@ export default function FeedScreen() {
   const leftCol = filteredPosts.filter((_, i) => i % 2 === 0);
   const rightCol = filteredPosts.filter((_, i) => i % 2 === 1);
 
-  const getTimeAgo = (timestamp: number) => {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-    if (seconds < 60) return 'Just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-  };
-
   const parseLocalDate = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 
   const formatDateRange = (startDate?: string, endDate?: string) => {
@@ -209,9 +200,9 @@ export default function FeedScreen() {
   };
 
   const getIntentTagStyle = (intent: PostIntent): { backgroundColor: string; color: string } => {
-    if (intent === 'OFFER') return { backgroundColor: '#FCE7F3', color: '#9D174D' };
-    if (intent === 'SEEK')  return { backgroundColor: '#DBEAFE', color: '#1E40AF' };
-    return { backgroundColor: '#F3F4F6', color: '#374151' };
+    if (intent === 'OFFER') return { backgroundColor: '#4A1634', color: '#F9A8D4' };
+    if (intent === 'SEEK')  return { backgroundColor: '#192F57', color: '#93C5FD' };
+    return { backgroundColor: '#1F2937', color: '#CBD5E1' };
   };
 
   const isClosedStatus = (item: Post) =>
@@ -266,25 +257,18 @@ export default function FeedScreen() {
 
         <View style={styles.cardBody}>
           <View style={styles.tagsRow}>
-            {item.types.map((t) => {
-              const ts = POST_TYPE_STYLES[t];
-              return (
-                <View key={t} style={[styles.tag, { backgroundColor: ts.backgroundColor }]}>
-                  <Text style={[styles.tagText, { color: ts.color }]}>{t}</Text>
-                </View>
-              );
-            })}
+            {item.types.map((t) => <TagBadge key={t} type={t} />)}
             {item.intent && (() => {
               const is = getIntentTagStyle(item.intent);
               return (
-                <View style={[styles.tag, { backgroundColor: is.backgroundColor }]}>
+                <View style={[styles.tag, { backgroundColor: is.backgroundColor, borderColor: is.color }]}>
                   <Text style={[styles.tagText, { color: is.color }]}>{item.intent}</Text>
                 </View>
               );
             })()}
             {!hasImage && isClosedStatus(item) && (
-              <View style={[styles.tag, { backgroundColor: '#F3F4F6' }]}>
-                <Text style={[styles.tagText, { color: '#374151' }]}>{item.status === 'FOUND' ? 'FOUND' : 'RENTED'}</Text>
+              <View style={[styles.tag, { backgroundColor: '#163329', borderColor: '#10B981' }]}>
+                <Text style={[styles.tagText, { color: '#A7F3D0' }]}>{item.status === 'FOUND' ? 'FOUND' : 'RENTED'}</Text>
               </View>
             )}
           </View>
@@ -309,19 +293,23 @@ export default function FeedScreen() {
 
           {item.isSample && (
             <View style={{
-              backgroundColor: '#F3F4F6',
-              borderRadius: 4,
+              backgroundColor: '#13263E',
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: '#1D4ED8',
               paddingHorizontal: 6,
               paddingVertical: 2,
               alignSelf: 'flex-start',
               marginTop: 4,
             }}>
-              <Text style={{ fontSize: 10, color: '#9CA3AF' }}>Sample</Text>
+              <Text style={{ fontSize: 10, color: '#BFDBFE', fontWeight: '700' }}>Example</Text>
             </View>
           )}
 
           <View style={styles.cardFooter}>
-            <Text style={styles.cardTime}>{getTimeAgo(item.createdAt)}</Text>
+            <Text style={styles.cardTime}>
+              {item.isSample ? 'Example listing' : formatRelativeTime(item.createdAt, 'Recently')}
+            </Text>
             <TouchableOpacity
               onPress={(e) => { e.stopPropagation(); handleToggleSaved(item.id); }}
               activeOpacity={0.8}
@@ -730,12 +718,13 @@ const createStyles = (colors: ReturnType<typeof getColors>) => StyleSheet.create
     marginBottom: 6,
   },
   tag: {
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   tagText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
@@ -761,8 +750,9 @@ const createStyles = (colors: ReturnType<typeof getColors>) => StyleSheet.create
     marginTop: 4,
   },
   cardTime: {
-    fontSize: 10,
-    color: '#9CA3AF',
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',

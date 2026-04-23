@@ -13,9 +13,20 @@ import { AuthProvider, useAuth } from '@/hooks/useAuth';
 function AppShell() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { needsUsernameSetup, saveUsername, loading, user } = useAuth();
+  const { needsUsernameSetup, saveUsername, loading, user, sessionState } = useAuth();
   const [usernameInput, setUsernameInput] = useState('');
   const [savingUsername, setSavingUsername] = useState(false);
+
+  console.log(
+    '[root/_layout] render loading=',
+    loading,
+    'sessionState=',
+    sessionState,
+    'hasUser=',
+    !!user,
+    'needsUsernameSetup=',
+    needsUsernameSetup
+  );
 
   useEffect(() => {
     if (!needsUsernameSetup) {
@@ -58,6 +69,7 @@ function AppShell() {
             headerBackTitle: 'Back',
           }}
         />
+        <Stack.Screen name="profile" options={{ headerShown: true, title: 'Profile' }} />
         <Stack.Screen name="post/edit/[id]" options={{ headerShown: true, title: 'Edit Post' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>

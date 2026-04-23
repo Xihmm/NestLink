@@ -1,6 +1,6 @@
 import { Tabs, useRouter } from 'expo-router';
 import React from 'react';
-import { Alert, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -11,7 +11,9 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { sessionState } = useAuth();
+
+  console.log('[tabs/_layout] render sessionState=', sessionState);
 
   return (
     <Tabs
@@ -43,35 +45,15 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>📋</Text>,
           headerRight: () => (
             <TouchableOpacity
-              onPress={() => {
-                if (user?.isAnonymous) {
-                  Alert.alert(
-                    'You\'re browsing as guest',
-                    'Sign in to post and contact others.',
-                    [
-                      { text: 'Sign In / Sign Up', onPress: () => router.push('/auth') },
-                      { text: 'Cancel', style: 'cancel' },
-                    ]
-                  );
-                } else {
-                  Alert.alert(
-                    'Account',
-                    user?.email ?? undefined,
-                    [
-                      { text: 'Sign Out', style: 'destructive', onPress: signOut },
-                      { text: 'Cancel', style: 'cancel' },
-                    ]
-                  );
-                }
-              }}
+              onPress={() => router.push('/profile')}
               style={{ position: 'absolute', right: 16 }}
             >
               <Text style={{
                 fontSize: 14,
                 fontWeight: '600',
-                color: user?.isAnonymous ? '#3B82F6' : '#6B7280',
+                color: sessionState === 'guest' ? '#60A5FA' : '#CBD5E1',
               }}>
-                {user?.isAnonymous ? 'Sign In' : 'Account'}
+                {sessionState === 'guest' ? 'Guest' : 'Profile'}
               </Text>
             </TouchableOpacity>
           ),

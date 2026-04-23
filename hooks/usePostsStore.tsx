@@ -1,8 +1,22 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { collection, query, orderBy, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
+import React, { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+} from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Post, PostStatus } from '@/types/post';
+import { Post, PostStatus, PostType } from '@/types/post';
 import { useAuth } from '@/hooks/useAuth';
+import { applyProfileToPost } from '@/lib/userProfiles';
+import { toMillis } from '@/lib/time';
 
 interface PostsContextType {
   posts: Post[];
@@ -27,9 +41,9 @@ const SAMPLE_POSTS: Post[] = [
     body: "Hi! I'm a grad student looking for a friendly roommate to share a 2BR apartment near campus. Clean, quiet, and respectful. Would love to meet someone with similar lifestyle. The place has a great kitchen and is close to public transit.",
     types: ['ROOMMATE'],
     intent: 'SEEK',
-    location: 'Downtown Toronto',
+    location: 'Downtown Rochester',
     budget: 800,
-    createdAt: Date.now() - 2 * 60 * 60 * 1000,
+    createdAt: 1736294400000,
     authorName: 'Sarah Chen',
     isSample: true,
   },
@@ -39,11 +53,11 @@ const SAMPLE_POSTS: Post[] = [
     body: "Subletting my 1BR apartment for the summer while I'm away for an internship. Fully furnished, utilities included, great location near campus and shops. Perfect for summer students or interns!",
     types: ['SUBLET'],
     intent: 'OFFER',
-    location: 'Midtown',
+    location: 'Park Ave',
     budget: 1200,
-    startDate: '2025-05-01',
-    endDate: '2025-08-31',
-    createdAt: Date.now() - 1 * 24 * 60 * 60 * 1000,
+    startDate: '2026-05-01',
+    endDate: '2026-08-31',
+    createdAt: 1737158400000,
     authorName: 'Alex Rivera',
     isSample: true,
   },
@@ -53,11 +67,11 @@ const SAMPLE_POSTS: Post[] = [
     body: "Looking for a sublet from January to April while I'm on co-op. Prefer something close to campus, furnished if possible. Budget flexible for the right place. Non-smoker, no pets.",
     types: ['SUBLET'],
     intent: 'SEEK',
-    location: 'Near Campus',
+    location: 'UR Campus',
     budget: 900,
     startDate: '2026-01-01',
     endDate: '2026-04-30',
-    createdAt: Date.now() - 3 * 60 * 60 * 1000,
+    createdAt: 1738713600000,
     authorName: 'Jordan Lee',
     isSample: true,
   },
@@ -67,11 +81,11 @@ const SAMPLE_POSTS: Post[] = [
     body: 'Private room available for 2 months starting immediately. Perfect for visiting students or those between leases. Quiet neighborhood, easy transit access. All utilities and WiFi included.',
     types: ['SHORT_TERM'],
     intent: 'OFFER',
-    location: 'East End',
+    location: 'South Wedge',
     budget: 950,
-    startDate: '2025-01-15',
-    endDate: '2025-03-15',
-    createdAt: Date.now() - 6 * 60 * 60 * 1000,
+    startDate: '2026-02-15',
+    endDate: '2026-04-15',
+    createdAt: 1739145600000,
     authorName: 'Taylor Brown',
     isSample: true,
   },
@@ -81,77 +95,42 @@ const SAMPLE_POSTS: Post[] = [
     body: 'Need temporary housing for 6 weeks while my apartment is being renovated. Clean, respectful tenant with references. Okay with sharing. Please reach out if you have anything available!',
     types: ['SHORT_TERM'],
     intent: 'SEEK',
-    location: 'Anywhere in City',
+    location: 'Any',
     budget: 800,
-    startDate: '2025-02-01',
-    endDate: '2025-03-15',
-    createdAt: Date.now() - 4 * 60 * 60 * 1000,
+    startDate: '2026-03-01',
+    endDate: '2026-04-15',
+    createdAt: 1739923200000,
     authorName: 'Pat Wilson',
     isSample: true,
   },
   {
     id: 'sample-7',
     title: 'Question: Best neighborhoods for students?',
-    body: "Hi everyone! I'm moving to the city for grad school this fall. What neighborhoods would you recommend for students? Looking for somewhere safe, affordable, and with good transit connections. Any advice appreciated!",
+    body: "Hi everyone! I'm moving to Rochester for grad school this fall. What neighborhoods would you recommend for students? Looking for somewhere safe, affordable, and with good transit connections. Any advice appreciated!",
     types: ['QA'],
     intent: null,
-    location: 'General',
-    createdAt: Date.now() - 8 * 60 * 60 * 1000,
+    location: 'Rochester',
+    createdAt: 1741046400000,
     authorName: 'Chris Martinez',
-    isSample: true,
-  },
-  {
-    id: 'sample-8',
-    title: 'Q: How to find reliable roommates?',
-    body: 'First time looking for roommates. What are the best practices? Any red flags I should watch out for? How do you usually split utilities and handle conflicts? Thanks in advance!',
-    types: ['QA'],
-    intent: null,
-    createdAt: Date.now() - 12 * 60 * 60 * 1000,
-    authorName: 'Anonymous',
-    isSample: true,
-  },
-  {
-    id: 'sample-10',
-    title: 'Sublet my Studio for 3 months',
-    body: 'Going abroad for research. Subletting my cozy studio apartment downtown. Fully furnished with everything you need. Building has gym and study rooms. Perfect for a student who wants their own space.',
-    types: ['SUBLET'],
-    intent: 'OFFER',
-    location: 'Downtown',
-    budget: 1400,
-    startDate: '2025-03-01',
-    endDate: '2025-05-31',
-    createdAt: Date.now() - 15 * 60 * 60 * 1000,
-    authorName: 'David Kim',
-    isSample: true,
-  },
-  {
-    id: 'sample-11',
-    title: 'Question: Average rent prices?',
-    body: "What's the typical rent range for a room in a shared apartment in this city? Trying to budget for next semester. Also, do most places include utilities or are they separate? Thanks!",
-    types: ['QA'],
-    intent: null,
-    createdAt: Date.now() - 20 * 60 * 60 * 1000,
-    authorName: 'Sam Thompson',
-    isSample: true,
-  },
-  {
-    id: 'sample-12',
-    title: 'Need place ASAP - 1 month',
-    body: 'Emergency situation - need short-term housing for about 1 month starting next week. Responsible tenant, can provide references. Any leads appreciated!',
-    types: ['SHORT_TERM'],
-    intent: 'SEEK',
-    location: 'Any',
-    budget: 1000,
-    startDate: '2025-01-10',
-    endDate: '2025-02-10',
-    createdAt: Date.now() - 30 * 60 * 1000,
-    authorName: 'Anonymous',
     isSample: true,
   },
 ];
 
+function normalizePostSnapshot(
+  id: string,
+  raw: Omit<Post, 'id'> & { type?: string; createdAt?: Post['createdAt'] }
+): Post {
+  const types = raw.types ?? (raw.type ? [raw.type as PostType] : []);
+  return {
+    ...raw,
+    id,
+    types,
+    createdAt: toMillis(raw.createdAt) ?? Date.now(),
+  };
+}
+
 export const PostsProvider = ({ children }: { children: ReactNode }) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [posts, setPosts] = useState<Post[]>(SAMPLE_POSTS);
   const [loading, setLoading] = useState(true);
   const [savedPostIds, setSavedPostIds] = useState<string[]>([]);
@@ -160,17 +139,13 @@ export const PostsProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
-        const snapshot = await getDocs(q);
-        const realPosts: Post[] = snapshot.docs.map((doc) => {
-          const data = doc.data() as Omit<Post, 'id'> & { type?: string };
-          const types = data.types ?? (data.type ? [data.type as import('@/types/post').PostType] : []);
-          return { ...data, id: doc.id, types };
-        });
+        const snapshot = await getDocs(query(collection(db, 'posts'), orderBy('createdAt', 'desc')));
+        const realPosts = snapshot.docs.map((item) =>
+          normalizePostSnapshot(item.id, item.data() as Omit<Post, 'id'> & { type?: string })
+        );
         setPosts([...realPosts, ...SAMPLE_POSTS]);
       } catch (error) {
         console.error('Failed to fetch posts from Firestore:', error);
-        // Fall back to sample posts only
         setPosts(SAMPLE_POSTS);
       } finally {
         setLoading(false);
@@ -179,6 +154,12 @@ export const PostsProvider = ({ children }: { children: ReactNode }) => {
 
     fetchPosts();
   }, []);
+
+  useEffect(() => {
+    if (!profile?.uid) return;
+
+    setPosts((prev) => prev.map((post) => applyProfileToPost(post, profile)));
+  }, [profile]);
 
   useEffect(() => {
     const fetchSavedPosts = async () => {
@@ -191,20 +172,11 @@ export const PostsProvider = ({ children }: { children: ReactNode }) => {
       setSavedPostsLoading(true);
 
       try {
-        const savedDocRef = doc(db, 'users', user.uid);
-        console.info('Fetching saved posts document.', {
-          uid: user.uid,
-          firestorePath: `users/${user.uid}`,
-        });
-        const snapshot = await getDoc(savedDocRef);
+        const snapshot = await getDoc(doc(db, 'users', user.uid));
         const savedIds = snapshot.exists() ? snapshot.data().savedPostIds : [];
         setSavedPostIds(Array.isArray(savedIds) ? savedIds : []);
       } catch (error) {
-        console.error('Failed to fetch saved posts:', {
-          uid: user.uid,
-          firestorePath: `users/${user.uid}`,
-          error,
-        });
+        console.error('Failed to fetch saved posts:', error);
         setSavedPostIds([]);
       } finally {
         setSavedPostsLoading(false);
@@ -216,54 +188,63 @@ export const PostsProvider = ({ children }: { children: ReactNode }) => {
 
   const addPost = async (post: Post) => {
     if (!user?.uid) {
-      console.error('Blocked post creation because auth user is missing.');
       throw new Error('Authentication is still loading. Please try again.');
     }
 
-    const { id, isSample, ...firestoreData } = post;
-    const dataWithAuthor = { ...firestoreData, authorId: user.uid };
-    const cleanData = Object.fromEntries(
-      Object.entries(dataWithAuthor).filter(([_, v]) => v !== undefined && v !== null)
+    const { id, isSample, createdAt, ...firestoreData } = post;
+    const payload = Object.fromEntries(
+      Object.entries({
+        ...firestoreData,
+        createdAt: serverTimestamp(),
+        authorId: user.uid,
+        authorUsername: profile?.username ?? post.authorUsername,
+        authorAvatarUrl: profile?.avatarUrl ?? post.authorAvatarUrl ?? null,
+        authorAvatarPreset: profile?.avatarUrl ? null : profile?.avatarPreset ?? post.authorAvatarPreset ?? null,
+        authorVerified: profile?.isVerified ?? false,
+        authorEmail: user.email ?? post.authorEmail ?? null,
+      }).filter(([, value]) => value !== undefined)
     );
 
-    console.info('Creating Firestore post document.', { authorId: user.uid });
-
-    let docRef;
-    try {
-      docRef = await addDoc(collection(db, 'posts'), cleanData);
-    } catch (error) {
-      console.error('Firestore post creation failed:', error);
-      throw error;
-    }
-
-    const savedPost: Post = { ...post, id: docRef.id, authorId: user.uid };
+    const docRef = await addDoc(collection(db, 'posts'), payload);
+    const savedPost: Post = {
+      ...post,
+      id: docRef.id,
+      createdAt: Date.now(),
+      authorId: user.uid,
+      authorUsername: profile?.username ?? post.authorUsername,
+      authorAvatarUrl: profile?.avatarUrl ?? post.authorAvatarUrl,
+      authorAvatarPreset: profile?.avatarUrl ? undefined : profile?.avatarPreset ?? post.authorAvatarPreset,
+      authorVerified: profile?.isVerified ?? false,
+      authorEmail: user.email ?? post.authorEmail,
+    };
     setPosts((prev) => [savedPost, ...prev]);
   };
 
   const updatePost = async (id: string, updates: Partial<Post>, isSample = false) => {
     if (!isSample) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { isSample: _s, id: _id, ...firestoreUpdates } = updates as Post;
+      const { isSample: _sampleFlag, id: _postId, ...firestoreUpdates } = updates as Post;
       const cleanData = Object.fromEntries(
-        Object.entries(firestoreUpdates).filter(([_, v]) => v !== undefined && v !== null)
+        Object.entries(firestoreUpdates).filter(([, value]) => value !== undefined)
       );
       await updateDoc(doc(db, 'posts', id), cleanData);
     }
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+
+    setPosts((prev) => prev.map((post) => (post.id === id ? { ...post, ...updates } : post)));
   };
 
   const updatePostStatus = async (id: string, status: PostStatus, isSample = false) => {
     if (!isSample) {
       await updateDoc(doc(db, 'posts', id), { status });
     }
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
+
+    setPosts((prev) => prev.map((post) => (post.id === id ? { ...post, status } : post)));
   };
 
   const deletePost = async (id: string, isSample = false) => {
     if (!isSample) {
       await deleteDoc(doc(db, 'posts', id));
     }
-    setPosts((prev) => prev.filter((p) => p.id !== id));
+    setPosts((prev) => prev.filter((post) => post.id !== id));
     setSavedPostIds((prev) => prev.filter((savedId) => savedId !== id));
   };
 
@@ -272,15 +253,7 @@ export const PostsProvider = ({ children }: { children: ReactNode }) => {
 
   const toggleSavedPost = async (id: string) => {
     if (!user?.uid) {
-      console.error('Blocked save toggle because auth user is missing.');
       throw new Error('Authentication is still loading. Please try again.');
-    }
-    if (!id) {
-      console.error('Blocked save toggle because post id is missing.', {
-        uid: user.uid,
-        postId: id,
-      });
-      throw new Error('This post could not be saved because its ID is missing.');
     }
 
     const nextSavedPostIds = savedPostIds.includes(id)
@@ -290,46 +263,29 @@ export const PostsProvider = ({ children }: { children: ReactNode }) => {
     setSavedPostIds(nextSavedPostIds);
 
     try {
-      const firestorePath = `users/${user.uid}`;
-      const savedDocRef = doc(db, 'users', user.uid);
-      console.info('Persisting saved posts toggle.', {
-        uid: user.uid,
-        postId: id,
-        firestorePath,
-        nextSavedPostIds,
-      });
-      await setDoc(savedDocRef, { savedPostIds: nextSavedPostIds }, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), { savedPostIds: nextSavedPostIds }, { merge: true });
     } catch (error) {
-      console.error('Failed to persist saved posts:', {
-        uid: user.uid,
-        postId: id,
-        firestorePath: `users/${user.uid}`,
-        error,
-      });
+      console.error('Failed to persist saved posts:', error);
       setSavedPostIds(savedPostIds);
       throw error;
     }
   };
 
-  return (
-    <PostsContext.Provider
-      value={{
-        posts,
-        loading,
-        savedPostIds,
-        savedPostsLoading,
-        addPost,
-        updatePost,
-        updatePostStatus,
-        deletePost,
-        getPostById,
-        isPostSaved,
-        toggleSavedPost,
-      }}
-    >
-      {children}
-    </PostsContext.Provider>
-  );
+  const value = useMemo<PostsContextType>(() => ({
+    posts,
+    loading,
+    savedPostIds,
+    savedPostsLoading,
+    addPost,
+    updatePost,
+    updatePostStatus,
+    deletePost,
+    getPostById,
+    isPostSaved,
+    toggleSavedPost,
+  }), [loading, posts, savedPostIds, savedPostsLoading]);
+
+  return <PostsContext.Provider value={value}>{children}</PostsContext.Provider>;
 };
 
 export const usePostsStore = () => {
