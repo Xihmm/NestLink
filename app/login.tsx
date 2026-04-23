@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,10 @@ import {
   Alert,
   Image,
   Linking,
+  ActivityIndicator,
   useColorScheme,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import pigImage from '@/assets/images/pig.png';
 
@@ -104,49 +105,67 @@ const createStyles = (colors: ReturnType<typeof getColors>) =>
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { loading, continueAsGuest, sessionState, hasSession, isRegisteredUser } = useAuth();
+  const { loading, continueAsGuest, sessionState, hasSession } = useAuth();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const colors = getColors(isDark);
   const styles = createStyles(colors);
 
+  // Local state to show spinner while continueAsGuest is in flight.
+  const [guestLoading, setGuestLoading] = useState(false);
+
   console.log(
-    '[login] render loading=',
-    loading,
-    'hasSession=',
-    hasSession,
-    'sessionState=',
-    sessionState,
-    'isRegisteredUser=',
-    isRegisteredUser
+    '[login] render loading=', loading,
+    'hasSession=', hasSession,
+    'sessionState=', sessionState
   );
 
-  const handleContinue = async () => {
-    if (loading) {
-      Alert.alert('Please wait', 'Your account is still loading. Try again in a moment.');
-      return;
-    }
+  // If auth is resolved and user already has a session, redirect immediately.
+  // This check comes FIRST — even if guestLoading is true — so that once
+  // onAuthStateChanged fires with the new user, the <Redirect> takes priority
+  // over the spinner. This is the Expo Router-safe pattern: rendering <Redirect>
+  // is more reliable than calling router.replace() inside a useEffect.
+  if (!loading && hasSession) {
+    console.log('[login] session active, rendering <Redirect> to /(tabs)');
+    return <Redirect href="/(tabs)" />;
+  }
 
+  // While Firebase is still hydrating auth state, or while continueAsGuest
+  // is in flight, show a spinner so the login form never flashes mid-transition.
+  if (loading || guestLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card }}>
+        <ActivityIndicator size="large" color="#3B82F6" />
+      </View>
+    );
+  }
+
+  const handleContinue = async () => {
+    setGuestLoading(true);
     try {
+      // continueAsGuest signs out any lingering registered user first,
+      // then creates a fresh anonymous session.
       await continueAsGuest();
-      console.log('[login] guest continue success, redirecting to /(tabs)');
-      router.replace('/(tabs)');
+      // Do NOT call router.replace here — onAuthStateChanged hasn't fired yet,
+      // so React state still shows the old user. Instead, let the re-render
+      // above handle navigation: once hasSession becomes true, <Redirect> fires.
     } catch (error) {
       console.error('Failed to continue from login screen:', error);
       Alert.alert('Unable to continue', 'We could not start your session. Please try again.');
+      setGuestLoading(false);
     }
+    // Note: if continueAsGuest succeeds, setGuestLoading(false) is intentionally
+    // NOT called — the spinner stays up until the <Redirect> kicks in.
   };
 
   const handleContactPress = async () => {
     const url = 'mailto:zgong12@u.rochester.edu';
-
     try {
       const supported = await Linking.canOpenURL(url);
       if (!supported) {
         Alert.alert('Unavailable', 'No email app is available on this device.');
         return;
       }
-
       await Linking.openURL(url);
     } catch (error) {
       console.error('Failed to open contact email link:', error);

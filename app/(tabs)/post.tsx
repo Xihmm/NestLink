@@ -905,7 +905,12 @@ export default function CreatePostScreen() {
           onPress: () => {
             resetForm();
             setSubmitting(false);
-            router.replace('/(tabs)/index');
+            const parentNav = navigation.getParent();
+            if (parentNav) {
+              parentNav.navigate('index' as never);
+            } else {
+              router.replace('/(tabs)');
+            }
           },
         },
       ]);

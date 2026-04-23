@@ -94,9 +94,16 @@ export function normalizeUserProfile(uid: string, raw: Record<string, unknown> |
 }
 
 export async function fetchUserProfile(uid: string): Promise<UserProfile | null> {
-  const snapshot = await getDoc(doc(db, 'users', uid));
-  if (!snapshot.exists()) return null;
-  return normalizeUserProfile(uid, snapshot.data());
+  try {
+    const snapshot = await getDoc(doc(db, 'users', uid));
+    if (!snapshot.exists()) return null;
+    return normalizeUserProfile(uid, snapshot.data());
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function fetchUserProfiles(uids: string[]): Promise<Record<string, UserProfile>> {

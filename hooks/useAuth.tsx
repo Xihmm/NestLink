@@ -1,8 +1,7 @@
-import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { onAuthStateChanged, signInAnonymously, signOut as firebaseSignOut, User } from 'firebase/auth';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { initAnonymousUser } from '@/lib/authService';
 import {
   buildDefaultUsername,
   ensureUserProfile,
@@ -47,53 +46,122 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [needsUsernameSetup, setNeedsUsernameSetup] = useState(false);
   const [loading, setLoading] = useState(true);
+  const profileRequestIdRef = useRef(0);
+
+  const waitForAuthUser = useCallback(
+    (predicate: (nextUser: User | null) => boolean, timeoutMs = 5000): Promise<User | null> =>
+      new Promise((resolve, reject) => {
+        if (predicate(auth.currentUser)) {
+          resolve(auth.currentUser);
+          return;
+        }
+
+        const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+          if (!predicate(nextUser)) {
+            return;
+          }
+
+          clearTimeout(timeoutId);
+          unsubscribe();
+          resolve(nextUser);
+        });
+
+        const timeoutId = setTimeout(() => {
+          unsubscribe();
+          reject(new Error('Timed out waiting for Firebase auth state to settle.'));
+        }, timeoutMs);
+      }),
+    []
+  );
 
   const hydrateCurrentUser = useCallback(async (nextUser: User) => {
     const nextProfile = await ensureUserProfile(nextUser);
     const generatedUsername = buildDefaultUsername(nextUser);
-    setUser(nextUser);
-    setProfile(nextProfile);
-    setNeedsUsernameSetup(!nextUser.isAnonymous && nextProfile.username === generatedUsername);
+    return {
+      nextProfile,
+      needsUsernameSetup: nextProfile.username === generatedUsername,
+    };
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
-      console.log('[useAuth] onAuthStateChanged fired uid=', nextUser?.uid ?? null, 'isAnonymous=', nextUser?.isAnonymous ?? null);
-      setLoading(true);
+    let active = true;
+    let unsubscribe: (() => void) | null = null;
 
-      if (!nextUser) {
-        setUser(null);
+    // auth.authStateReady() resolves once Firebase has finished reading from
+    // AsyncStorage (or any other persistence layer). Waiting for it before we
+    // subscribe to onAuthStateChanged eliminates the race where Firebase emits
+    // null *before* it has read the persisted session, which was causing the
+    // app to flash the login screen even when the user was logged in.
+    auth.authStateReady().then(() => {
+      if (!active) return;
+
+      unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
+        if (!active) return;
+        console.log('[useAuth] onAuthStateChanged fired uid=', nextUser?.uid ?? null, 'isAnonymous=', nextUser?.isAnonymous ?? null);
+        setLoading(true);
+        profileRequestIdRef.current += 1;
+        const requestId = profileRequestIdRef.current;
         setProfile(null);
         setNeedsUsernameSetup(false);
-        setLoading(false);
-        return;
-      }
 
-      try {
-        await hydrateCurrentUser(nextUser);
-      } catch (error) {
-        console.error('Failed to initialize auth state:', error);
-        const fallbackUsername = buildDefaultUsername(nextUser);
+        if (!nextUser) {
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
         setUser(nextUser);
-        setProfile({
-          uid: nextUser.uid,
-          username: fallbackUsername,
-          email: nextUser.email ?? null,
-          isVerified: isUrEmail(nextUser.email),
-          isAnonymous: nextUser.isAnonymous,
-        });
-        setNeedsUsernameSetup(!nextUser.isAnonymous);
-      } finally {
-        setLoading(false);
-      }
+
+        if (nextUser.isAnonymous) {
+          console.log('[useAuth] guest session active, skipping profile fetch for uid=', nextUser.uid);
+          setLoading(false);
+          return;
+        }
+
+        try {
+          console.log('[useAuth] profile fetch start uid=', nextUser.uid, 'requestId=', requestId);
+          const hydrated = await hydrateCurrentUser(nextUser);
+          if (!active || profileRequestIdRef.current !== requestId || auth.currentUser?.uid !== nextUser.uid || auth.currentUser?.isAnonymous) {
+            console.log('[useAuth] stale profile fetch ignored uid=', nextUser.uid, 'requestId=', requestId);
+            return;
+          }
+          console.log('[useAuth] profile fetch resolved uid=', nextUser.uid, 'requestId=', requestId);
+          setProfile(hydrated.nextProfile);
+          setNeedsUsernameSetup(hydrated.needsUsernameSetup);
+        } catch (error) {
+          if (!active || profileRequestIdRef.current !== requestId || auth.currentUser?.uid !== nextUser.uid || auth.currentUser?.isAnonymous) {
+            console.log('[useAuth] stale profile fetch error ignored uid=', nextUser.uid, 'requestId=', requestId);
+            return;
+          }
+          console.error('Failed to initialize auth state:', error);
+          const fallbackUsername = buildDefaultUsername(nextUser);
+          setProfile({
+            uid: nextUser.uid,
+            username: fallbackUsername,
+            email: nextUser.email ?? null,
+            isVerified: isUrEmail(nextUser.email),
+            isAnonymous: nextUser.isAnonymous,
+          });
+          setNeedsUsernameSetup(true);
+        } finally {
+          if (active) setLoading(false);
+        }
+      });
     });
 
-    return unsubscribe;
+    return () => {
+      active = false;
+      if (unsubscribe) unsubscribe();
+    };
   }, [hydrateCurrentUser]);
 
   const refreshProfile = useCallback(async () => {
-    if (!auth.currentUser) return;
-    await hydrateCurrentUser(auth.currentUser);
+    if (!auth.currentUser || auth.currentUser.isAnonymous) return;
+    const hydrated = await hydrateCurrentUser(auth.currentUser);
+    if (auth.currentUser && !auth.currentUser.isAnonymous) {
+      setProfile(hydrated.nextProfile);
+      setNeedsUsernameSetup(hydrated.needsUsernameSetup);
+    }
   }, [hydrateCurrentUser]);
 
   const updateProfile = useCallback(async (updates: UpdateProfileInput) => {
@@ -161,12 +229,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [updateProfile]);
 
   const continueAsGuest = useCallback(async () => {
-    await initAnonymousUser();
-  }, []);
+    const currentUser = auth.currentUser;
+
+    if (currentUser?.isAnonymous) {
+      await waitForAuthUser((nextUser) => !!nextUser?.isAnonymous && nextUser.uid === currentUser.uid);
+      return;
+    }
+
+    // If a registered (non-anonymous) user's session was restored by Firebase,
+    // sign them out first so "Continue as guest" never revives an old account.
+    if (currentUser && !currentUser.isAnonymous) {
+      console.log('[useAuth] continueAsGuest: signing out registered user before starting guest session');
+      await firebaseSignOut(auth);
+      await waitForAuthUser((nextUser) => nextUser === null);
+    }
+
+    const credential = await signInAnonymously(auth);
+    await waitForAuthUser(
+      (nextUser) => !!nextUser?.isAnonymous && nextUser.uid === credential.user.uid
+    );
+  }, [waitForAuthUser]);
 
   const signOut = useCallback(async () => {
-    await auth.signOut();
-  }, []);
+    await firebaseSignOut(auth);
+    await waitForAuthUser((nextUser) => nextUser === null);
+  }, [waitForAuthUser]);
 
   const sessionState: SessionState = useMemo(() => {
     if (loading) return 'loading';
@@ -192,9 +279,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     loading,
     sessionState,
     hasSession: sessionState === 'guest' || sessionState === 'registered',
-    isAnonymous: sessionState === 'guest',
-    isRegisteredUser: sessionState === 'registered',
-    isEduVerified: profile?.isVerified ?? isUrEmail(user?.email),
+    isAnonymous: !!user?.isAnonymous,
+    isRegisteredUser: !!user && !user.isAnonymous,
+    isEduVerified: !user?.isAnonymous && (profile?.isVerified ?? isUrEmail(user?.email)),
     userEmail: user?.email ?? null,
     username: profile?.username ?? null,
     profile,

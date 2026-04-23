@@ -43,16 +43,19 @@ export function CommentsSection({
             return (
               <View key={comment.id} style={styles.card}>
                 <View style={styles.cardHeader}>
-                  <AuthorRow
-                    username={name}
-                    subtitle={formatRelativeTime(comment.createdAt, 'Recently')}
-                    avatarUrl={comment.authorAvatarUrl}
-                    avatarPreset={comment.authorAvatarPreset}
-                    verified={comment.authorVerified}
-                    avatarSize={34}
-                  />
+                  <View style={styles.authorWrapper}>
+                    <AuthorRow
+                      username={name}
+                      subtitle={formatRelativeTime(comment.createdAt, 'Recently')}
+                      avatarUrl={comment.authorAvatarUrl}
+                      avatarPreset={comment.authorAvatarPreset}
+                      verified={comment.authorVerified}
+                      avatarSize={34}
+                    />
+                  </View>
                   {isOwner && onDeleteComment ? (
                     <TouchableOpacity
+                      style={styles.deleteButton}
                       onPress={() =>
                         Alert.alert('Delete this comment?', '', [
                           { text: 'Cancel', style: 'cancel' },
@@ -125,10 +128,18 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 8,
     alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 8,
+  },
+  authorWrapper: {
+    flex: 1,
+    minWidth: 0,
+  },
+  deleteButton: {
+    paddingLeft: 4,
+    paddingTop: 2,
+    flexShrink: 0,
   },
   delete: {
     color: '#FCA5A5',

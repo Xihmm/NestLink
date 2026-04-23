@@ -51,7 +51,7 @@ export default function TabLayout() {
               <Text style={{
                 fontSize: 14,
                 fontWeight: '600',
-                color: sessionState === 'guest' ? '#60A5FA' : '#CBD5E1',
+                color: sessionState === 'guest' ? '#3B82F6' : isDark ? '#CBD5E1' : '#374151',
               }}>
                 {sessionState === 'guest' ? 'Guest' : 'Profile'}
               </Text>

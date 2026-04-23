@@ -1,6 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { POST_TYPE_STYLES } from '@/constants/tag-styles';
+import { StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { getTagStyles } from '@/constants/tag-styles';
 import { PostType } from '@/types/post';
 
 type Props = {
@@ -8,7 +8,8 @@ type Props = {
 };
 
 export function TagBadge({ type }: Props) {
-  const style = POST_TYPE_STYLES[type];
+  const colorScheme = useColorScheme();
+  const style = getTagStyles(colorScheme === 'dark')[type];
 
   return (
     <View

@@ -1,5 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -14,6 +14,9 @@ function AppShell() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { needsUsernameSetup, saveUsername, loading, user, sessionState } = useAuth();
+  const router = useRouter();
+  const segments = useSegments();
+  const navigationState = useRootNavigationState();
   const [usernameInput, setUsernameInput] = useState('');
   const [savingUsername, setSavingUsername] = useState(false);
 
@@ -33,6 +36,32 @@ function AppShell() {
       setUsernameInput('');
     }
   }, [needsUsernameSetup]);
+
+  useEffect(() => {
+    if (!navigationState?.key || loading) {
+      return;
+    }
+
+    const routeKey = segments.join('/');
+    // auth is intentionally excluded — it must be reachable by guests to register
+    const isPublicRoute = routeKey === '' || routeKey === 'index' || routeKey === 'login';
+    const isProtectedRoute =
+      routeKey === '(tabs)' ||
+      routeKey.startsWith('(tabs)/') ||
+      routeKey === 'profile' ||
+      routeKey === 'post' ||
+      routeKey.startsWith('post/');
+    const isSignedIn = sessionState === 'guest' || sessionState === 'registered';
+
+    if (isSignedIn && isPublicRoute) {
+      router.replace('/(tabs)');
+      return;
+    }
+
+    if (sessionState === 'signed_out' && isProtectedRoute) {
+      router.replace('/login');
+    }
+  }, [loading, navigationState?.key, router, segments, sessionState]);
 
   const handleSaveUsername = async () => {
     const trimmed = usernameInput.trim();
@@ -69,7 +98,7 @@ function AppShell() {
             headerBackTitle: 'Back',
           }}
         />
-        <Stack.Screen name="profile" options={{ headerShown: true, title: 'Profile' }} />
+        <Stack.Screen name="profile" options={{ headerShown: true, title: 'Profile', headerBackTitle: 'Back' }} />
         <Stack.Screen name="post/edit/[id]" options={{ headerShown: true, title: 'Edit Post' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>

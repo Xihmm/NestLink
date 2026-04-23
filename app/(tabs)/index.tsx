@@ -200,13 +200,19 @@ export default function FeedScreen() {
   };
 
   const getIntentTagStyle = (intent: PostIntent): { backgroundColor: string; color: string } => {
-    if (intent === 'OFFER') return { backgroundColor: '#4A1634', color: '#F9A8D4' };
-    if (intent === 'SEEK')  return { backgroundColor: '#192F57', color: '#93C5FD' };
-    return { backgroundColor: '#1F2937', color: '#CBD5E1' };
+    if (isDark) {
+      if (intent === 'OFFER') return { backgroundColor: '#4A1634', color: '#F9A8D4' };
+      if (intent === 'SEEK')  return { backgroundColor: '#192F57', color: '#93C5FD' };
+      return { backgroundColor: '#1F2937', color: '#CBD5E1' };
+    } else {
+      if (intent === 'OFFER') return { backgroundColor: '#FCE7F3', color: '#9D174D' };
+      if (intent === 'SEEK')  return { backgroundColor: '#DBEAFE', color: '#1E40AF' };
+      return { backgroundColor: '#F3F4F6', color: '#374151' };
+    }
   };
 
   const isClosedStatus = (item: Post) =>
-    item.status === 'FOUND' || item.status === 'RENTED_OUT';
+    item.status === 'FOUND' || item.status === 'RENTED_OUT' || item.status === 'CLOSED';
 
   const handleToggleSaved = async (postId: string) => {
     try {
@@ -248,7 +254,7 @@ export default function FeedScreen() {
             {isClosedStatus(item) && (
               <View style={styles.closedOverlay}>
                 <Text style={styles.closedOverlayText}>
-                  {item.status === 'FOUND' ? '✅ Found' : '🏠 Rented'}
+                  {item.status === 'FOUND' ? '✅ Found' : item.status === 'CLOSED' ? '✅ Solved' : '🏠 Rented'}
                 </Text>
               </View>
             )}
@@ -268,7 +274,9 @@ export default function FeedScreen() {
             })()}
             {!hasImage && isClosedStatus(item) && (
               <View style={[styles.tag, { backgroundColor: '#163329', borderColor: '#10B981' }]}>
-                <Text style={[styles.tagText, { color: '#A7F3D0' }]}>{item.status === 'FOUND' ? 'FOUND' : 'RENTED'}</Text>
+                <Text style={[styles.tagText, { color: '#A7F3D0' }]}>
+                  {item.status === 'FOUND' ? 'FOUND' : item.status === 'CLOSED' ? 'SOLVED' : 'RENTED'}
+                </Text>
               </View>
             )}
           </View>

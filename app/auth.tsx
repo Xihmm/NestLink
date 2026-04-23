@@ -11,11 +11,13 @@ import {
   Alert,
   ScrollView,
   useColorScheme,
+  ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { registerWithEmail, signInWithEmail, isEduEmail } from '@/lib/authService';
+import { useAuth } from '@/hooks/useAuth';
 
 type Tab = 'login' | 'signup';
 
@@ -173,13 +175,13 @@ const createStyles = (colors: ReturnType<typeof getColors>) =>
   });
 
 export default function AuthScreen() {
-  const router = useRouter();
   const [tab, setTab] = useState<Tab>('signup');
   const [emailInput, setEmailInput] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [eduDetected, setEduDetected] = useState(false);
+  const { loading, hasSession, continueAsGuest } = useAuth();
 
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -187,6 +189,18 @@ export default function AuthScreen() {
   const styles = createStyles(colors);
 
   console.log('[auth] render tab=', tab, 'submitting=', submitting, 'eduDetected=', eduDetected);
+
+  if (!loading && hasSession) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card }}>
+        <ActivityIndicator size="large" color="#3B82F6" />
+      </View>
+    );
+  }
 
   const handleSubmit = async () => {
     if (submitting) return;
@@ -215,19 +229,11 @@ export default function AuthScreen() {
         await registerWithEmail(trimmedEmail, password);
         if (isEduEmail(trimmedEmail)) {
           setEduDetected(true);
-          console.log('[auth] signup success (.edu), scheduling redirect to /(tabs)');
-          setTimeout(() => {
-            console.log('[auth] executing delayed redirect to /(tabs)');
-            router.replace('/(tabs)');
-          }, 2000);
-        } else {
-          console.log('[auth] signup success, redirecting to /(tabs)');
-          router.replace('/(tabs)');
+          console.log('[auth] signup success (.edu), waiting for auth-state redirect to /(tabs)');
         }
       } else {
         await signInWithEmail(trimmedEmail, password);
-        console.log('[auth] login success, redirecting to /(tabs)');
-        router.replace('/(tabs)');
+        console.log('[auth] login success, waiting for auth-state redirect to /(tabs)');
       }
     } catch (error) {
       Alert.alert('Error', friendlyError(error));
@@ -236,9 +242,18 @@ export default function AuthScreen() {
     }
   };
 
-  const handleSkip = () => {
-    console.log('[auth] skip pressed, redirecting to /(tabs)');
-    router.replace('/(tabs)');
+  const handleSkip = async () => {
+    if (submitting) return;
+
+    setSubmitting(true);
+    try {
+      await continueAsGuest();
+    } catch (error) {
+      console.error('Failed to continue as guest from auth screen:', error);
+      Alert.alert('Unable to continue', 'We could not start your guest session. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleForgotPassword = async () => {

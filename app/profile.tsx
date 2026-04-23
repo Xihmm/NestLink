@@ -35,7 +35,7 @@ const getColors = (isDark: boolean) => ({
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, profile, updateProfile, signOut, isRegisteredUser, isAnonymous } = useAuth();
+  const { user, profile, updateProfile, signOut, isRegisteredUser, isAnonymous, loading } = useAuth();
   const { posts } = usePostsStore();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -57,7 +57,7 @@ export default function ProfileScreen() {
     [posts, user?.uid]
   );
 
-  if (!user || !profile) {
+  if (!user) {
     return (
       <View style={styles.centerState}>
         <Text style={styles.emptyTitle}>No active session</Text>
@@ -73,9 +73,7 @@ export default function ProfileScreen() {
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.headerCard}>
           <Avatar
-            username={profile.username}
-            avatarUrl={profile.avatarUrl}
-            avatarPreset={profile.avatarPreset}
+            username="Guest Session"
             size={88}
           />
           <View style={styles.headerText}>
@@ -89,16 +87,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <View style={styles.noticeCard}>
-          <Text style={styles.noticeTitle}>Register this account</Text>
-          <Text style={styles.noticeBody}>
-            Keep your session and upgrade it into a full account when you&apos;re ready to post, comment, and manage your profile.
-          </Text>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/auth')}>
-            <Text style={styles.primaryButtonText}>Register this account</Text>
-          </TouchableOpacity>
-        </View>
-
         <TouchableOpacity
           style={[styles.secondaryButton, styles.signOutButton]}
           onPress={async () => {
@@ -109,6 +97,14 @@ export default function ProfileScreen() {
           <Text style={styles.secondaryButtonText}>End Guest Session</Text>
         </TouchableOpacity>
       </ScrollView>
+    );
+  }
+
+  if (loading || !profile) {
+    return (
+      <View style={styles.centerState}>
+        <Text style={styles.emptyTitle}>Loading profile…</Text>
+      </View>
     );
   }
 

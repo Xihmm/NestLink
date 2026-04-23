@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Dimensions,
@@ -11,6 +11,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useColorScheme,
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -33,13 +34,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { db } from '@/lib/firebase';
 import { formatRelativeTime } from '@/lib/time';
 import {
-  applyProfileToComment,
-  applyProfileToPost,
-  fetchUserProfiles,
   validateComment,
 } from '@/lib/userProfiles';
 import { PostIntent } from '@/types/post';
-import { PostComment, UserProfile } from '@/types/user';
+import { PostComment } from '@/types/user';
 
 const getColors = () => ({
   bg: '#0F172A',
@@ -51,13 +49,15 @@ const getColors = () => ({
 });
 
 export default function PostDetailScreen() {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const screenWidth = Dimensions.get('window').width;
   const colors = getColors();
   const styles = createStyles(colors);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getPostById, updatePostStatus, deletePost, isPostSaved, toggleSavedPost } = usePostsStore();
-  const { user: currentUser, username, profile } = useAuth();
+  const { user: currentUser, username, profile, isRegisteredUser } = useAuth();
   const [showContact, setShowContact] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -65,7 +65,6 @@ export default function PostDetailScreen() {
   const [comments, setComments] = useState<PostComment[]>([]);
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
-  const [authorProfiles, setAuthorProfiles] = useState<Record<string, UserProfile>>({});
 
   const post = getPostById(id);
 
@@ -94,46 +93,8 @@ export default function PostDetailScreen() {
     return unsubscribe;
   }, [post?.id]);
 
-  useEffect(() => {
-    const userIds = [post?.authorId, ...comments.map((comment) => comment.authorId)]
-      .filter((value): value is string => !!value);
-
-    if (userIds.length === 0) {
-      setAuthorProfiles({});
-      return;
-    }
-
-    let active = true;
-    fetchUserProfiles(userIds)
-      .then((profiles) => {
-        if (active) {
-          setAuthorProfiles(profiles);
-        }
-      })
-      .catch((error) => {
-        console.error('Failed to fetch author profiles:', error);
-        if (active) {
-          setAuthorProfiles({});
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [comments, post?.authorId]);
-
-  const resolvedPost = useMemo(
-    () => (post ? applyProfileToPost(post, post.authorId ? authorProfiles[post.authorId] : undefined) : undefined),
-    [authorProfiles, post]
-  );
-
-  const resolvedComments = useMemo(
-    () =>
-      comments.map((comment) =>
-        applyProfileToComment(comment, comment.authorId ? authorProfiles[comment.authorId] : undefined)
-      ),
-    [authorProfiles, comments]
-  );
+  const resolvedPost = post;
+  const resolvedComments = comments;
 
   if (!resolvedPost) {
     return (
@@ -148,9 +109,15 @@ export default function PostDetailScreen() {
   }
 
   const getIntentBadgeColor = (intent: PostIntent) => {
-    if (intent === 'OFFER') return { backgroundColor: '#4A1634', color: '#F9A8D4' };
-    if (intent === 'SEEK') return { backgroundColor: '#192F57', color: '#93C5FD' };
-    return { backgroundColor: '#1F2937', color: '#CBD5E1' };
+    if (isDark) {
+      if (intent === 'OFFER') return { backgroundColor: '#4A1634', color: '#F9A8D4' };
+      if (intent === 'SEEK')  return { backgroundColor: '#192F57', color: '#93C5FD' };
+      return { backgroundColor: '#1F2937', color: '#CBD5E1' };
+    } else {
+      if (intent === 'OFFER') return { backgroundColor: '#FCE7F3', color: '#9D174D' };
+      if (intent === 'SEEK')  return { backgroundColor: '#DBEAFE', color: '#1E40AF' };
+      return { backgroundColor: '#F3F4F6', color: '#374151' };
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -264,6 +231,11 @@ export default function PostDetailScreen() {
             <Text style={styles.statusBannerText}>Already Rented Out</Text>
           </View>
         )}
+        {resolvedPost.status === 'CLOSED' && (
+          <View style={styles.statusBanner}>
+            <Text style={styles.statusBannerText}>Question Solved ✅</Text>
+          </View>
+        )}
 
         <View style={styles.header}>
           <View style={styles.badges}>
@@ -372,40 +344,50 @@ export default function PostDetailScreen() {
         {!resolvedPost.types.includes('QA') && !resolvedPost.isSample && (resolvedPost.wechatId || resolvedPost.phone || resolvedPost.email) ? (
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Contact</Text>
-            <TouchableOpacity
-              style={styles.contactButton}
-              onPress={() => setShowContact((previous) => !previous)}
-            >
-              <Text style={styles.contactButtonText}>{showContact ? 'Hide Contact Info' : 'Show Contact Info'}</Text>
-            </TouchableOpacity>
-            {showContact ? (
-              <View style={styles.contactDetails}>
-                {resolvedPost.wechatId ? (
-                  <ContactRow
-                    label="WeChat"
-                    value={resolvedPost.wechatId}
-                    copied={copiedField === 'wechat'}
-                    onCopy={() => copyToClipboard(resolvedPost.wechatId!, 'wechat')}
-                  />
+            {isRegisteredUser ? (
+              <>
+                <TouchableOpacity
+                  style={styles.contactButton}
+                  onPress={() => setShowContact((previous) => !previous)}
+                >
+                  <Text style={styles.contactButtonText}>{showContact ? 'Hide Contact Info' : 'Show Contact Info'}</Text>
+                </TouchableOpacity>
+                {showContact ? (
+                  <View style={styles.contactDetails}>
+                    {resolvedPost.wechatId ? (
+                      <ContactRow
+                        label="WeChat"
+                        value={resolvedPost.wechatId}
+                        copied={copiedField === 'wechat'}
+                        onCopy={() => copyToClipboard(resolvedPost.wechatId!, 'wechat')}
+                      />
+                    ) : null}
+                    {resolvedPost.phone ? (
+                      <ContactRow
+                        label="Phone"
+                        value={resolvedPost.phone}
+                        copied={copiedField === 'phone'}
+                        onCopy={() => copyToClipboard(resolvedPost.phone!, 'phone')}
+                      />
+                    ) : null}
+                    {resolvedPost.email ? (
+                      <ContactRow
+                        label="Email"
+                        value={resolvedPost.email}
+                        copied={copiedField === 'email'}
+                        onCopy={() => copyToClipboard(resolvedPost.email!, 'email')}
+                      />
+                    ) : null}
+                  </View>
                 ) : null}
-                {resolvedPost.phone ? (
-                  <ContactRow
-                    label="Phone"
-                    value={resolvedPost.phone}
-                    copied={copiedField === 'phone'}
-                    onCopy={() => copyToClipboard(resolvedPost.phone!, 'phone')}
-                  />
-                ) : null}
-                {resolvedPost.email ? (
-                  <ContactRow
-                    label="Email"
-                    value={resolvedPost.email}
-                    copied={copiedField === 'email'}
-                    onCopy={() => copyToClipboard(resolvedPost.email!, 'email')}
-                  />
-                ) : null}
+              </>
+            ) : (
+              <View style={[styles.contactButton, styles.contactButtonDisabled]}>
+                <Text style={[styles.contactButtonText, styles.contactButtonDisabledText]}>
+                  🔒 Sign up to view contact info
+                </Text>
               </View>
-            ) : null}
+            )}
           </View>
         ) : null}
 
@@ -428,32 +410,32 @@ export default function PostDetailScreen() {
               </TouchableOpacity>
             ) : null}
 
-            {resolvedPost.status !== 'FOUND' && resolvedPost.status !== 'RENTED_OUT' && (
-              <TouchableOpacity
-                style={styles.successAction}
-                onPress={() =>
-                  Alert.alert('Mark as closed?', 'This post will stop appearing as active.', [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Mark Closed',
-                      style: 'destructive',
-                      onPress: () =>
-                        updatePostStatus(
-                          id,
-                          resolvedPost.types.includes('ROOMMATE') || resolvedPost.intent === 'SEEK' ? 'FOUND' : 'RENTED_OUT',
-                          resolvedPost.isSample
-                        ),
-                    },
-                  ])
-                }
-              >
-                <Text style={styles.primaryActionText}>
-                  {resolvedPost.types.includes('ROOMMATE') || resolvedPost.intent === 'SEEK'
-                    ? 'Mark as Found'
-                    : 'Mark as Rented Out'}
-                </Text>
-              </TouchableOpacity>
-            )}
+            {resolvedPost.status !== 'FOUND' && resolvedPost.status !== 'RENTED_OUT' && resolvedPost.status !== 'CLOSED' && (() => {
+              const isQAPost = resolvedPost.types.includes('QA');
+              const isRoommateOrSeek = resolvedPost.types.includes('ROOMMATE') || resolvedPost.intent === 'SEEK';
+              const buttonLabel = isQAPost ? 'Mark as Solved' : isRoommateOrSeek ? 'Mark as Found' : 'Mark as Rented Out';
+              const newStatus = isQAPost ? 'CLOSED' : isRoommateOrSeek ? 'FOUND' : 'RENTED_OUT';
+              const alertMessage = isQAPost
+                ? 'This will mark the question as answered.'
+                : 'This post will stop appearing as active.';
+              return (
+                <TouchableOpacity
+                  style={styles.successAction}
+                  onPress={() =>
+                    Alert.alert('Mark as closed?', alertMessage, [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Confirm',
+                        style: 'destructive',
+                        onPress: () => updatePostStatus(id, newStatus, resolvedPost.isSample),
+                      },
+                    ])
+                  }
+                >
+                  <Text style={styles.primaryActionText}>{buttonLabel}</Text>
+                </TouchableOpacity>
+              );
+            })()}
 
             <TouchableOpacity
               style={styles.deleteAction}
@@ -715,10 +697,19 @@ const createStyles = (colors: ReturnType<typeof getColors>) =>
       paddingVertical: 12,
       alignItems: 'center',
     },
+    contactButtonDisabled: {
+      backgroundColor: '#1E293B',
+      borderWidth: 1,
+      borderColor: '#334155',
+    },
     contactButtonText: {
       color: '#FFFFFF',
       fontSize: 15,
       fontWeight: '700',
+    },
+    contactButtonDisabledText: {
+      color: '#64748B',
+      fontWeight: '600',
     },
     contactDetails: {
       marginTop: 14,
