@@ -199,13 +199,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       { merge: true }
     );
 
-    await syncUserIdentityAcrossContent(user.uid, {
-      username: nextUsername,
-      avatarUrl: nextAvatarUrl ?? undefined,
-      avatarPreset: (nextAvatarUrl ? undefined : nextAvatarPreset ?? undefined) as UserProfile['avatarPreset'],
-      isVerified: nextVerified,
-      email: user.email ?? null,
-    });
+    try {
+      await syncUserIdentityAcrossContent(user.uid, {
+        username: nextUsername,
+        avatarUrl: nextAvatarUrl ?? undefined,
+        avatarPreset: (nextAvatarUrl ? undefined : nextAvatarPreset ?? undefined) as UserProfile['avatarPreset'],
+        isVerified: nextVerified,
+        email: user.email ?? null,
+      });
+    } catch (syncError) {
+      console.warn('[updateProfile] identity sync failed (non-fatal):', syncError);
+    }
 
     setProfile((prev) => ({
       uid: user.uid,
