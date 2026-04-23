@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, InteractionManager, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 
@@ -18,6 +18,7 @@ function AppShell() {
   const segments = useSegments();
   const navigationState = useRootNavigationState();
   const [usernameInput, setUsernameInput] = useState('');
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [savingUsername, setSavingUsername] = useState(false);
 
   console.log(
@@ -34,7 +35,13 @@ function AppShell() {
   useEffect(() => {
     if (!needsUsernameSetup) {
       setUsernameInput('');
+      setShowUsernameModal(false);
+      return;
     }
+    const task = InteractionManager.runAfterInteractions(() => {
+      setShowUsernameModal(true);
+    });
+    return () => task.cancel();
   }, [needsUsernameSetup]);
 
   useEffect(() => {
@@ -104,47 +111,46 @@ function AppShell() {
       </Stack>
       <StatusBar style="auto" />
       <Toast />
-      <Modal
-        visible={!loading && !!user && !user.isAnonymous && needsUsernameSetup}
-        transparent
-        animationType="fade"
-      >
-        <Pressable style={styles.modalBackdrop} />
-        <View style={[styles.modalCard, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF' }]}>
-          <Text style={[styles.modalTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>
-            Set your username
-          </Text>
-          <Text style={[styles.modalText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
-            Pick the name other users will see on your posts and comments.
-          </Text>
-          <TextInput
-            value={usernameInput}
-            onChangeText={setUsernameInput}
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!savingUsername}
-            placeholder="Enter a username"
-            placeholderTextColor="#9CA3AF"
-            style={[
-              styles.modalInput,
-              {
-                backgroundColor: isDark ? '#111827' : '#FFFFFF',
-                borderColor: isDark ? '#374151' : '#E5E7EB',
-                color: isDark ? '#F9FAFB' : '#111827',
-              },
-            ]}
-          />
-          <TouchableOpacity
-            style={[styles.modalButton, savingUsername && styles.modalButtonDisabled]}
-            onPress={handleSaveUsername}
-            disabled={savingUsername}
-          >
-            <Text style={styles.modalButtonText}>
-              {savingUsername ? 'Saving...' : 'Save Username'}
-            </Text>
-          </TouchableOpacity>
+      {showUsernameModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.modalCard, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF' }]}>
+              <Text style={[styles.modalTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>
+                Set your username
+              </Text>
+              <Text style={[styles.modalText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
+                Pick the name other users will see on your posts and comments.
+              </Text>
+              <TextInput
+                value={usernameInput}
+                onChangeText={setUsernameInput}
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!savingUsername}
+                placeholder="Enter a username"
+                placeholderTextColor="#9CA3AF"
+                style={[
+                  styles.modalInput,
+                  {
+                    backgroundColor: isDark ? '#111827' : '#FFFFFF',
+                    borderColor: isDark ? '#374151' : '#E5E7EB',
+                    color: isDark ? '#F9FAFB' : '#111827',
+                  },
+                ]}
+              />
+              <TouchableOpacity
+                style={[styles.modalButton, savingUsername && styles.modalButtonDisabled]}
+                onPress={handleSaveUsername}
+                disabled={savingUsername}
+              >
+                <Text style={styles.modalButtonText}>
+                  {savingUsername ? 'Saving...' : 'Save Username'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-      </Modal>
+      )}
     </ThemeProvider>
   );
 }
@@ -160,15 +166,21 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999,
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
   },
   modalCard: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    top: '28%',
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
